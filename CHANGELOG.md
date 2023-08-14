@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - S3: Implement RTCIO wakeup source (#690)
 - Add PARL_IO TX driver for ESP32-C6 / ESP32-H2 (#733)
 - Implement `ufmt_write::uWrite` trait for USB Serial JTAG (#751)
+- Add multicore-aware embassy executor for Xtensa MCUs (#723).
+- Add interrupt-executor for Xtensa MCUs (#723).
 
 ### Changed
 
