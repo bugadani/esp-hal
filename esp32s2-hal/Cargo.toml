@@ -32,7 +32,7 @@ xtensa-atomic-emulation-trap = "0.4.0"
 aes                = "0.8.3"
 critical-section   = "1.1.2"
 crypto-bigint      = { version = "0.5.2", default-features = false}
-embassy-executor   = { version = "0.2.0", features = ["nightly", "integrated-timers", "arch-xtensa", "executor-thread"] }
+embassy-executor   = { version = "0.2.1", features = ["nightly", "integrated-timers"] }
 embassy-time       = { version = "0.1.2", features = ["nightly"] }
 embedded-graphics  = "0.8.1"
 embedded-hal-1     = { version = "=1.0.0-alpha.11", package = "embedded-hal" }
