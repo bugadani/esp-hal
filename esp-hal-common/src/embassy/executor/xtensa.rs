@@ -26,6 +26,21 @@ static SIGNAL_WORK_THREAD_MODE: [AtomicBool; 1] = [AtomicBool::new(false)];
 #[cfg(multi_core)]
 static SIGNAL_WORK_THREAD_MODE: [AtomicBool; 2] = [AtomicBool::new(false), AtomicBool::new(false)];
 
+#[interrupt]
+fn FROM_CPU_INTR0() {
+    #[cfg(multi_core)]
+    {
+        // This interrupt is fired when the thread-mode executor's core needs to be
+        // woken. It doesn't matter which core handles this interrupt first, the
+        // point is just to wake up the core that is currently executing
+        // `waiti`.
+        let system = unsafe { &*SystemPeripheral::PTR };
+        system
+            .cpu_intr_from_cpu_0
+            .write(|w| w.cpu_intr_from_cpu_0().bit(false));
+    }
+}
+
 /// Multi-core Xtensa Executor
 pub struct Executor {
     inner: raw::Executor,
@@ -62,9 +77,6 @@ impl Executor {
                         system
                             .cpu_intr_from_cpu_0
                             .write(|w| w.cpu_intr_from_cpu_0().bit(true));
-                        system
-                            .cpu_intr_from_cpu_0
-                            .write(|w| w.cpu_intr_from_cpu_0().bit(false));
                     }
                 },
                 get_core() as usize as *mut (),
