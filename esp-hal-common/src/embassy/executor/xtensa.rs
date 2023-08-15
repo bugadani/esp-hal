@@ -17,7 +17,6 @@ use peripherals::DPORT as SystemPeripheral;
 #[cfg(not(esp32))]
 use peripherals::SYSTEM as SystemPeripheral;
 
-#[cfg(multi_core)]
 use crate::{get_core, interrupt, peripherals};
 
 /// global atomic used to keep track of whether there is work to do since sev()
