@@ -82,6 +82,10 @@ name              = "embassy_hello_world"
 required-features = ["embassy"]
 
 [[example]]
+name              = "embassy_multicore"
+required-features = ["embassy"]
+
+[[example]]
 name              = "embassy_wait"
 required-features = ["embassy", "async"]
 
