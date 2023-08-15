@@ -17,7 +17,7 @@ use peripherals::DPORT as SystemPeripheral;
 #[cfg(not(esp32))]
 use peripherals::SYSTEM as SystemPeripheral;
 
-use crate::{get_core, interrupt, peripherals};
+use crate::{get_core, interrupt, peripherals, prelude::interrupt};
 
 /// global atomic used to keep track of whether there is work to do since sev()
 /// is not available on Xtensa
@@ -141,6 +141,8 @@ impl Executor {
     }
 }
 
+static FROM_CPU_IRQ_USED: AtomicUsize = AtomicUsize::new(0);
+
 pub trait SwPendableInterrupt {
     fn enable(priority: interrupt::Priority);
     fn pend();
@@ -152,14 +154,7 @@ macro_rules! from_cpu {
         paste::paste! {
             pub struct [<FromCpu $cpu>];
 
-            /// Tracks which cores have handled the interrupt. If all cores have, we can clear the
-            /// interrupt request.
-            #[cfg(multi_core)]
-            static [<FROM_CPU_ $cpu _HANDLED>]: AtomicUsize = AtomicUsize::new(0);
-
-            /// The reset value of FROM_CPU_n_HANDLED.
-            #[cfg(multi_core)]
-            static [<FROM_CPU_ $cpu _ENABLED>]: AtomicUsize = AtomicUsize::new(0);
+            /// We don't allow using the same interrupt for multiple executors.
 
             impl [<FromCpu $cpu>] {
                 fn set_bit(value: bool) {
@@ -172,40 +167,20 @@ macro_rules! from_cpu {
 
             impl SwPendableInterrupt for [<FromCpu $cpu>] {
                 fn enable(priority: interrupt::Priority) {
-                    #[cfg(multi_core)]
-                    [<FROM_CPU_ $cpu _ENABLED>].fetch_or(1 << get_core() as usize, Ordering::SeqCst);
+                    let mask = 1 << get_core() as usize;
+                    if FROM_CPU_IRQ_USED.fetch_or(mask, Ordering::SeqCst) & mask != 0 {
+                        panic!(concat!("FROM_CPU_", $cpu, " is already used by a different executor."));
+                    }
 
                     interrupt::enable(peripherals::Interrupt::[<FROM_CPU_INTR $cpu>], priority).unwrap();
                 }
 
                 fn pend() {
-                    // No matter what core is running this function, we need to pend the interrupt
-                    // because that will schedule the executor to run. However, we must only set
-                    // the interrupt request in a critical section so that we don't set it while
-                    // the other core is trying to clear it.
-                    critical_section::with(|_| {
-                        #[cfg(multi_core)]
-                        [<FROM_CPU_ $cpu _HANDLED>].store([<FROM_CPU_ $cpu _ENABLED>].load(Ordering::SeqCst), Ordering::SeqCst);
-
-                        Self::set_bit(true);
-                    });
+                    Self::set_bit(true);
                 }
 
                 fn clear() {
-                    // We must only clear the interrupt request when all cores have handled it.
-                    // An interrupt may fire at any time, so reading the atomic and clearing the
-                    // interrupt request must be done atomically.
-                    critical_section::with(|_| {
-                        #[cfg(multi_core)]
-                        {
-                            let cpu_mask = !(1 << get_core() as usize);
-                            let old = [<FROM_CPU_ $cpu _HANDLED>].fetch_and(cpu_mask, Ordering::SeqCst);
-                            if old != cpu_mask {
-                                return;
-                            }
-                        }
-                        Self::set_bit(false);
-                    });
+                    Self::set_bit(false);
                 }
             }
         }
@@ -256,11 +231,9 @@ where
     // when vectoring is enabled. The user shouldn't need to provide the handler for
     // us.
     pub unsafe fn on_interrupt(&'static self) {
-        if !cfg!(multi_core) || get_core() as usize == self.core.load(Ordering::SeqCst) {
-            SWI::clear();
-            let executor = unsafe { (*self.executor.get()).assume_init_ref() };
-            executor.poll();
-        }
+        SWI::clear();
+        let executor = unsafe { (*self.executor.get()).assume_init_ref() };
+        executor.poll();
     }
 
     /// Start the executor at the given priority level.
