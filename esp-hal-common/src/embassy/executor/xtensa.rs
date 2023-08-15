@@ -1,13 +1,21 @@
 //! Multicore-aware embassy executor.
 use core::{
+    cell::UnsafeCell,
     marker::PhantomData,
-    sync::atomic::{AtomicBool, Ordering},
+    mem::MaybeUninit,
+    ptr,
+    sync::atomic::{AtomicBool, AtomicUsize, Ordering},
 };
 
 use embassy_executor::{
     raw::{self, Pender},
+    SendSpawner,
     Spawner,
 };
+#[cfg(esp32)]
+use peripherals::DPORT as SystemPeripheral;
+#[cfg(not(esp32))]
+use peripherals::SYSTEM as SystemPeripheral;
 
 #[cfg(multi_core)]
 use crate::{get_core, interrupt, peripherals};
@@ -31,7 +39,7 @@ impl Executor {
         #[cfg(multi_core)]
         interrupt::enable(
             peripherals::Interrupt::FROM_CPU_INTR0,
-            interrupt::Priority::Priority3,
+            interrupt::Priority::Priority1,
         )
         .unwrap();
 
@@ -46,20 +54,18 @@ impl Executor {
                     // If we are pending a task on the current core, we're done. Otherwise, we
                     // need to make sure the other core wakes up.
                     #[cfg(multi_core)]
-                    {
-                        if core != get_core() as usize {
-                            // We need to kick the other core to wake up. The interrupt handler
-                            // doesn't need to do anything.
-                            #[cfg(not(esp32))]
-                            let system = unsafe { &*peripherals::SYSTEM::PTR };
+                    if core != get_core() as usize {
+                        // We need to clear the interrupt from software. We don't actually
+                        // need it to trigger and run the interrupt handler, we just need to
+                        // kick waiti to return.
 
-                            #[cfg(esp32)]
-                            let system = unsafe { &*peripherals::DPORT::PTR };
-
-                            system
-                                .cpu_intr_from_cpu_0
-                                .write(|w| w.cpu_intr_from_cpu_0().bit(true));
-                        }
+                        let system = unsafe { &*SystemPeripheral::PTR };
+                        system
+                            .cpu_intr_from_cpu_0
+                            .write(|w| w.cpu_intr_from_cpu_0().bit(true));
+                        system
+                            .cpu_intr_from_cpu_0
+                            .write(|w| w.cpu_intr_from_cpu_0().bit(false));
                     }
                 },
                 get_core() as usize as *mut (),
@@ -121,5 +127,183 @@ impl Executor {
                 }
             }
         }
+    }
+}
+
+pub trait SwPendableInterrupt {
+    fn enable(priority: interrupt::Priority);
+    fn pend();
+    fn clear();
+}
+
+macro_rules! from_cpu {
+    ($cpu:literal) => {
+        paste::paste! {
+            pub struct [<FromCpu $cpu>];
+
+            /// Tracks which cores have handled the interrupt. If all cores have, we can clear the
+            /// interrupt request.
+            #[cfg(multi_core)]
+            static [<FROM_CPU_ $cpu _HANDLED>]: AtomicUsize = AtomicUsize::new(0);
+
+            /// The reset value of FROM_CPU_n_HANDLED.
+            #[cfg(multi_core)]
+            static [<FROM_CPU_ $cpu _ENABLED>]: AtomicUsize = AtomicUsize::new(0);
+
+            impl [<FromCpu $cpu>] {
+                fn set_bit(value: bool) {
+                    let system = unsafe { &*SystemPeripheral::PTR };
+                    system
+                        .[<cpu_intr_from_cpu_ $cpu>]
+                        .write(|w| w.[<cpu_intr_from_cpu_ $cpu>]().bit(value));
+                }
+            }
+
+            impl SwPendableInterrupt for [<FromCpu $cpu>] {
+                fn enable(priority: interrupt::Priority) {
+                    #[cfg(multi_core)]
+                    [<FROM_CPU_ $cpu _ENABLED>].fetch_or(1 << get_core() as usize, Ordering::SeqCst);
+
+                    interrupt::enable(peripherals::Interrupt::[<FROM_CPU_INTR $cpu>], priority).unwrap();
+                }
+
+                fn pend() {
+                    // No matter what core is running this function, we need to pend the interrupt
+                    // because that will schedule the executor to run. However, we must only set
+                    // the interrupt request in a critical section so that we don't set it while
+                    // the other core is trying to clear it.
+                    critical_section::with(|_| {
+                        #[cfg(multi_core)]
+                        [<FROM_CPU_ $cpu _HANDLED>].store([<FROM_CPU_ $cpu _ENABLED>].load(Ordering::SeqCst), Ordering::SeqCst);
+
+                        Self::set_bit(true);
+                    });
+                }
+
+                fn clear() {
+                    // We must only clear the interrupt request when all cores have handled it.
+                    // An interrupt may fire at any time, so reading the atomic and clearing the
+                    // interrupt request must be done atomically.
+                    critical_section::with(|_| {
+                        #[cfg(multi_core)]
+                        {
+                            let cpu_mask = !(1 << get_core() as usize);
+                            let old = [<FROM_CPU_ $cpu _HANDLED>].fetch_and(cpu_mask, Ordering::SeqCst);
+                            if old != cpu_mask {
+                                return;
+                            }
+                        }
+                        Self::set_bit(false);
+                    });
+                }
+            }
+        }
+    };
+}
+
+from_cpu!(1);
+from_cpu!(2);
+from_cpu!(3);
+
+/// Interrupt mode executor.
+///
+/// This executor runs tasks in interrupt mode. The interrupt handler is set up
+/// to poll tasks, and when a task is woken the interrupt is pended from
+/// software.
+pub struct InterruptExecutor<SWI>
+where
+    SWI: SwPendableInterrupt,
+{
+    core: AtomicUsize,
+    executor: UnsafeCell<MaybeUninit<raw::Executor>>,
+    _interrupt: PhantomData<SWI>,
+}
+
+unsafe impl<SWI: SwPendableInterrupt> Send for InterruptExecutor<SWI> {}
+unsafe impl<SWI: SwPendableInterrupt> Sync for InterruptExecutor<SWI> {}
+
+impl<SWI> InterruptExecutor<SWI>
+where
+    SWI: SwPendableInterrupt,
+{
+    /// Create a new `InterruptExecutor`.
+    #[inline]
+    pub const fn new() -> Self {
+        Self {
+            core: AtomicUsize::new(usize::MAX),
+            executor: UnsafeCell::new(MaybeUninit::uninit()),
+            _interrupt: PhantomData,
+        }
+    }
+
+    /// Executor interrupt callback.
+    ///
+    /// # Safety
+    ///
+    /// You MUST call this from the interrupt handler, and from nowhere else.
+    // TODO: it would be pretty sweet if we could register our own interrupt handler
+    // when vectoring is enabled. The user shouldn't need to provide the handler for
+    // us.
+    pub unsafe fn on_interrupt(&'static self) {
+        if !cfg!(multi_core) || get_core() as usize == self.core.load(Ordering::SeqCst) {
+            SWI::clear();
+            let executor = unsafe { (*self.executor.get()).assume_init_ref() };
+            executor.poll();
+        }
+    }
+
+    /// Start the executor at the given priority level.
+    ///
+    /// This initializes the executor, enables the interrupt, and returns.
+    /// The executor keeps running in the background through the interrupt.
+    ///
+    /// This returns a [`SendSpawner`] you can use to spawn tasks on it. A
+    /// [`SendSpawner`] is returned instead of a [`Spawner`] because the
+    /// executor effectively runs in a different "thread" (the interrupt),
+    /// so spawning tasks on it is effectively sending them.
+    ///
+    /// To obtain a [`Spawner`] for this executor, use
+    /// [`Spawner::for_current_executor()`] from a task running in it.
+    ///
+    /// # Interrupt requirements
+    ///
+    /// You must write the interrupt handler yourself, and make it call
+    /// [`Self::on_interrupt()`]
+    ///
+    /// This method already enables (unmasks) the interrupt, you must NOT do it
+    /// yourself.
+    ///
+    /// You must set the interrupt priority before calling this method. You MUST
+    /// NOT do it after.
+    ///
+    /// [`Spawner`]: embassy_executor::Spawner
+    /// [`Spawner::for_current_executor()`]: embassy_executor::Spawner::for_current_executor()
+    pub fn start(&'static self, priority: interrupt::Priority) -> SendSpawner {
+        if self
+            .core
+            .compare_exchange(
+                usize::MAX,
+                get_core() as usize,
+                Ordering::Acquire,
+                Ordering::Relaxed,
+            )
+            .is_err()
+        {
+            panic!("InterruptExecutor::start() called multiple times on the same executor.");
+        }
+
+        unsafe {
+            (*self.executor.get())
+                .as_mut_ptr()
+                .write(raw::Executor::new(Pender::new_from_callback(
+                    |_| SWI::pend(),
+                    ptr::null_mut(),
+                )))
+        }
+
+        SWI::enable(priority);
+
+        let executor = unsafe { (*self.executor.get()).assume_init_ref() };
+        executor.spawner().make_send()
     }
 }
