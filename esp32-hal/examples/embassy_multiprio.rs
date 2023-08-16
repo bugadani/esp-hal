@@ -1,13 +1,14 @@
-//! This example shows how to use the interrupt executors to prioritize some tasks over others.
-//! The low priority task will not be able to run its async task while the blocking task is running,
-//! but the high priority task will be able to blink the LED regardless.
+//! This example shows how to use the interrupt executors to prioritize some
+//! tasks over others. The low priority task will not be able to run its async
+//! task while the blocking task is running, but the high priority task will be
+//! able to blink the LED regardless.
 
 #![no_std]
 #![no_main]
 #![feature(type_alias_impl_trait)]
 
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
-use embassy_time::{Duration, Ticker, Instant};
+use embassy_time::{Duration, Instant, Ticker};
 use esp32_hal::{
     clock::ClockControl,
     embassy::{
@@ -72,8 +73,7 @@ async fn low_prio_blocking() {
         get_core() as usize
     );
     let start = Instant::now();
-    while start.elapsed() < Duration::from_secs(10) {
-    }
+    while start.elapsed() < Duration::from_secs(10) {}
     esp_println::println!("Low prio task finished");
 }
 
@@ -83,7 +83,8 @@ async fn low_prio_async() {
     println!("Starting low_prio_async() on core {}", get_core() as usize);
     let mut ticker = Ticker::every(Duration::from_secs(1));
     loop {
-        // Note that when the blocking task finishes, the ticker will fire multiple times.
+        // Note that when the blocking task finishes, the ticker will fire multiple
+        // times.
         println!("Tick from low priority async task");
         ticker.next().await;
     }
