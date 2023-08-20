@@ -62,6 +62,7 @@ ufmt                 = ["esp-hal-common/ufmt"]
 vectored             = ["esp-hal-common/vectored"]
 async                = ["esp-hal-common/async"]
 embassy              = ["esp-hal-common/embassy"]
+executor             = ["esp-hal-common/executor"]
 embassy-time-systick = ["esp-hal-common/embassy-time-systick", "embassy-time/tick-hz-16_000_000"]
 embassy-time-timg0   = ["esp-hal-common/embassy-time-timg0", "embassy-time/tick-hz-1_000_000"]
 

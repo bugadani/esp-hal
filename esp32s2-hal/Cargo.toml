@@ -59,6 +59,7 @@ ufmt      = ["esp-hal-common/ufmt"]
 vectored  = ["esp-hal-common/vectored"]
 async     = ["esp-hal-common/async"]
 embassy   = ["esp-hal-common/embassy"]
+executor  = ["esp-hal-common/executor"]
 # FIXME:
 # - add 80_000_000 support to embassy time
 # - Fix https://github.com/esp-rs/esp-hal/issues/253

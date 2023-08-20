@@ -98,8 +98,9 @@ ufmt = ["ufmt-write"]
 vectored = ["procmacros/interrupt"]
 
 # Implement the `embedded-hal-async==1.0.0-alpha.x` traits
-async   = ["embedded-hal-async", "eh1", "embassy-sync", "embassy-futures"]
-embassy = ["embassy-time", "embassy-executor"]
+async    = ["embedded-hal-async", "eh1", "embassy-sync", "embassy-futures"]
+embassy  = ["embassy-time"]
+executor = ["embassy-executor"]
 
 embassy-time-systick = []
 embassy-time-timg0   = []
