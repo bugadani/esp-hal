@@ -34,6 +34,7 @@ usb-device           = { version = "0.2.9", optional = true }
 
 # async
 embedded-hal-async = { version = "=0.2.0-alpha.2", optional = true }
+embassy-executor   = { version = "0.2.1", features = ["pender-callback"], optional = true } # pender is temporary
 embassy-sync       = { version = "0.2.0", optional = true }
 embassy-time       = { version = "0.1.2", features = ["nightly"], optional = true }
 embassy-futures    = { version = "0.1.0", optional = true }
@@ -97,8 +98,9 @@ ufmt = ["ufmt-write"]
 vectored = ["procmacros/interrupt"]
 
 # Implement the `embedded-hal-async==1.0.0-alpha.x` traits
-async   = ["embedded-hal-async", "eh1", "embassy-sync", "embassy-futures"]
-embassy = ["embassy-time"]
+async    = ["embedded-hal-async", "eh1", "embassy-sync", "embassy-futures"]
+embassy  = ["embassy-time"]
+executor = ["embassy-executor"]
 
 embassy-time-systick = []
 embassy-time-timg0   = []

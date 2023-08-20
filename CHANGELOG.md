@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement RTCIO pullup, pulldown and hold control for Xtensa MCUs (#684)
 - Add GPIO input support and implement additional `embedded-hal` output traits for the C6's LP core [#720]
 - S3: Implement RTCIO wakeup source (#690)
+- Add multicore-aware embassy executor for Xtensa MCUs (#723).
+- Add interrupt-executor for Xtensa MCUs (#723).
 
 ### Changed
 

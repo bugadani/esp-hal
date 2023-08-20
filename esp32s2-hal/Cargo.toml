@@ -33,7 +33,7 @@ xtensa-atomic-emulation-trap = "0.4.0"
 aes                = "0.8.3"
 critical-section   = "1.1.2"
 crypto-bigint      = { version = "0.5.2", default-features = false}
-embassy-executor   = { version = "0.2.0", features = ["nightly", "integrated-timers", "arch-xtensa", "executor-thread"] }
+embassy-executor   = { version = "0.2.1", features = ["nightly", "integrated-timers"] }
 embedded-graphics  = "0.8.1"
 embedded-hal-1     = { version = "=1.0.0-alpha.11", package = "embedded-hal" }
 embedded-hal-async = "=0.2.0-alpha.2"
@@ -59,6 +59,7 @@ ufmt      = ["esp-hal-common/ufmt"]
 vectored  = ["esp-hal-common/vectored"]
 async     = ["esp-hal-common/async"]
 embassy   = ["esp-hal-common/embassy"]
+executor  = ["esp-hal-common/executor"]
 # FIXME:
 # - add 80_000_000 support to embassy time
 # - Fix https://github.com/esp-rs/esp-hal/issues/253
