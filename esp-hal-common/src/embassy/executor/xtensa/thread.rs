@@ -4,10 +4,7 @@ use core::{
     sync::atomic::{AtomicBool, Ordering},
 };
 
-use embassy_executor::{
-    raw::{self, Pender},
-    Spawner,
-};
+use embassy_executor::{raw, Spawner};
 #[cfg(all(dport, multi_core))]
 use peripherals::DPORT as SystemPeripheral;
 #[cfg(all(system, multi_core))]
@@ -20,9 +17,10 @@ use crate::{interrupt, peripherals};
 /// global atomic used to keep track of whether there is work to do since sev()
 /// is not available on Xtensa
 #[cfg(not(multi_core))]
-static SIGNAL_WORK_THREAD_MODE: [AtomicBool; 1] = [AtomicBool::new(false)];
+pub(super) static SIGNAL_WORK_THREAD_MODE: [AtomicBool; 1] = [AtomicBool::new(false)];
 #[cfg(multi_core)]
-static SIGNAL_WORK_THREAD_MODE: [AtomicBool; 2] = [AtomicBool::new(false), AtomicBool::new(false)];
+pub(super) static SIGNAL_WORK_THREAD_MODE: [AtomicBool; 2] =
+    [AtomicBool::new(false), AtomicBool::new(false)];
 
 #[interrupt]
 fn FROM_CPU_INTR0() {
