@@ -943,6 +943,16 @@ bitfield::bitfield! {
     pub bool, xpd_xtal     , set_xpd_xtal     : 31;
 }
 
+#[derive(Clone, Copy, Default)]
+// pmu_sleep_power_config_t.1
+pub struct LpSysPower {
+    // This is a best-guess assignment of the variants in the union `pmu_lp_power_t` union
+    // In esp-idf, all three fields are `pmu_lp_power_t`
+    pub dig_power: LpDigPower,
+    pub clk_power: LpClkPower,
+    pub xtal: LpXtalPower,
+}
+
 bitfield::bitfield! {
     #[derive(Clone, Copy, Default)]
     // pmu_lp_analog_t.0
@@ -1475,7 +1485,7 @@ impl RtcClock {
     /// Calibration of RTC_SLOW_CLK is performed using a special feature of
     /// TIMG0. This feature counts the number of XTAL clock cycles within a
     /// given number of RTC_SLOW_CLK cycles.
-    fn calibrate_internal(mut cal_clk: RtcCalSel, slowclk_cycles: u32) -> u32 {
+    pub(crate) fn calibrate_internal(mut cal_clk: RtcCalSel, slowclk_cycles: u32) -> u32 {
         const SOC_CLK_RC_FAST_FREQ_APPROX: u32 = 17_500_000;
         const SOC_CLK_RC_SLOW_FREQ_APPROX: u32 = 136_000;
         const SOC_CLK_XTAL32K_FREQ_APPROX: u32 = 32768;
@@ -1795,4 +1805,28 @@ impl RtcClock {
 
         (100_000_000 * 1000 / period) as u16
     }
+}
+
+pub(crate) fn rtc_clk_cpu_freq_set_xtal() {
+    let freq_mhz = RtcClock::get_xtal_freq();
+
+    unsafe {
+        // clk_ll_ahb_set_ls_divider(1);
+        pcr()
+            .ahb_freq_conf()
+            .modify(|_, w| w.ahb_ls_div_num().bits(0));
+
+        // clk_ll_cpu_set_ls_divider(1);
+        pcr()
+            .cpu_freq_conf()
+            .modify(|_, w| w.cpu_ls_div_num().bits(0));
+
+        // clk_ll_cpu_set_src(SOC_CPU_CLK_SRC_XTAL);
+        pcr().sysclk_conf().modify(|_, w| w.soc_clk_sel().bits(0));
+    }
+
+    let esp_rom_set_cpu_ticks_per_us: fn(u32) = unsafe { core::mem::transmute(0x4000_0048) };
+    esp_rom_set_cpu_ticks_per_us(freq_mhz.mhz());
+
+    // TODO: don't turn off the bbpll if some consumers depend on bbpll
 }
