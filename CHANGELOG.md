@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A macro to make it easier to create DMA buffers and descriptors (#935)
 - I2C timeout is configurable (#1011)
 - ESP32-C6/ESP32-H2: `flip-link` feature gives zero-cost stack overflow protection (#1008)
+- ESP32-C6: Properly initialize PMU (#974)
 
 ### Changed
 
