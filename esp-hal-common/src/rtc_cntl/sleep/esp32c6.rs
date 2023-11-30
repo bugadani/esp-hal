@@ -13,6 +13,7 @@ use crate::{
             LpAnalog,
             LpSysPower,
             RtcCalSel,
+            SavedClockConfig,
         },
         sleep::{Ext1WakeupSource, WakeSource, WakeTriggers, WakeupLevel},
         RtcClock,
@@ -882,7 +883,7 @@ impl RtcSleepConfig {
             wakeup_mask & reject_mask
         };
 
-        // TODO: save clock settings
+        let cpu_freq_config = SavedClockConfig::save();
         rtc_clk_cpu_freq_set_xtal();
 
         // like esp-idf pmu_sleep_start()
@@ -947,7 +948,7 @@ impl RtcSleepConfig {
 
         // esp-idf returns if the sleep was rejected, we don't return anything
 
-        // TODO: restore clock settings
+        cpu_freq_config.restore();
     }
 
     /// Cleans up after sleep

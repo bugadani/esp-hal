@@ -107,7 +107,7 @@ type RtcCntl = crate::peripherals::RTC_CNTL;
 #[cfg_attr(esp32h2, path = "rtc/esp32h2.rs")]
 #[cfg_attr(esp32s2, path = "rtc/esp32s2.rs")]
 #[cfg_attr(esp32s3, path = "rtc/esp32s3.rs")]
-mod rtc;
+pub(crate) mod rtc;
 
 #[cfg(any(esp32c6, esp32h2))]
 pub use rtc::RtcClock;
