@@ -548,14 +548,28 @@ impl SleepTimeConfig {
         (period_64 & (u32::MAX as u64)) as u32
     }
 
+    fn new(_deep: bool) -> Self {
+        // https://github.com/espressif/esp-idf/commit/e1d24ebd7f43c7c7ded183bc8800b20af3bf014b
+
+        // Calibrate rtc slow clock
+        // TODO: do an actual calibration instead of a read
+        let slowclk_period = unsafe { lp_aon().store1().read().lp_aon_store1().bits() };
+
+        // Calibrate rtc fast clock, only PMU supported chips sleep process is needed.
+        const FAST_CLK_SRC_CAL_CYCLES: u32 = 2048;
+        let fastclk_period = Self::rtc_clk_cal_fast(FAST_CLK_SRC_CAL_CYCLES);
+
+        Self {
+            sleep_time_adjustment: 0,
+            slowclk_period,
+            fastclk_period,
+        }
+    }
+
     fn light_sleep(pd_flags: PowerDownFlags) -> Self {
         const LIGHT_SLEEP_TIME_OVERHEAD_US: u32 = 56;
 
-        let mut this = Self {
-            sleep_time_adjustment: 0,
-            slowclk_period: unsafe { lp_aon().store1().read().lp_aon_store1().bits() },
-            fastclk_period: Self::rtc_clk_cal_fast(2048),
-        };
+        let mut this = Self::new(false);
 
         let sw = LIGHT_SLEEP_TIME_OVERHEAD_US; // TODO
         let hw = this.pmu_sleep_calculate_hw_wait_time(pd_flags);
@@ -566,20 +580,15 @@ impl SleepTimeConfig {
     }
 
     fn deep_sleep() -> Self {
-        Self {
-            sleep_time_adjustment: 250 + 100 * 240 / CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ,
-            slowclk_period: unsafe { lp_aon().store1().read().lp_aon_store1().bits() },
-            fastclk_period: 0, // esp-idf doesn't set this anywhere for deep sleep
-        }
+        let mut this = Self::new(true);
+
+        this.sleep_time_adjustment = 250 + 100 * 240 / CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ;
+
+        this
     }
 
     fn us_to_slowclk(&self, us: u32) -> u32 {
-        // FIXME https://github.com/espressif/esp-idf/issues/12695
-        if self.slowclk_period == 0 {
-            1
-        } else {
-            (us << Self::RTC_CLK_CAL_FRACT) / self.slowclk_period
-        }
+        (us << Self::RTC_CLK_CAL_FRACT) / self.slowclk_period
     }
 
     fn slowclk_to_us(&self, rtc_cycles: u32) -> u32 {
@@ -587,12 +596,7 @@ impl SleepTimeConfig {
     }
 
     fn us_to_fastclk(&self, us: u32) -> u32 {
-        // FIXME https://github.com/espressif/esp-idf/issues/12695
-        if self.fastclk_period == 0 {
-            1
-        } else {
-            (us << Self::RTC_CLK_CAL_FRACT) / self.fastclk_period
-        }
+        (us << Self::RTC_CLK_CAL_FRACT) / self.fastclk_period
     }
 
     fn pmu_sleep_calculate_hw_wait_time(&self, pd_flags: PowerDownFlags) -> u32 {
@@ -806,7 +810,6 @@ impl RtcSleepConfig {
 
     /// Finalize power-down flags, apply configuration based on the flags.
     pub(crate) fn apply(&mut self) {
-        // pmu_sleep_config_default + pmu_sleep_init
         if self.deep {
             // force-disable certain power domains
             self.pd_flags.set_pd_top(true);
@@ -818,31 +821,6 @@ impl RtcSleepConfig {
             self.pd_flags.set_pd_xtal(true);
             self.pd_flags.set_pd_hp_aon(true);
         }
-
-        let power = PowerSleepConfig::defaults(self.pd_flags);
-        power.apply();
-
-        let config = if self.deep {
-            SleepTimeConfig::deep_sleep()
-        } else {
-            SleepTimeConfig::light_sleep(self.pd_flags)
-        };
-
-        let mut param =
-            ParamSleepConfig::defaults(config, self.pd_flags, power.hp_sys.xtal.xpd_xtal());
-
-        if self.deep {
-            const PMU_LP_ANALOG_WAIT_TARGET_TIME_DSLP_US: u32 = 500;
-            param.lp_sys.analog_wait_target_cycle =
-                config.us_to_slowclk(PMU_LP_ANALOG_WAIT_TARGET_TIME_DSLP_US) as u8;
-
-            AnalogSleepConfig::defaults_deep_sleep().apply();
-        } else {
-            AnalogSleepConfig::defaults_light_sleep(self.pd_flags).apply();
-            DigitalSleepConfig::defaults_light_sleep(self.pd_flags).apply();
-        }
-
-        param.apply();
     }
 
     /// Configures wakeup options and enters sleep.
@@ -885,6 +863,34 @@ impl RtcSleepConfig {
 
         let cpu_freq_config = SavedClockConfig::save();
         rtc_clk_cpu_freq_set_xtal();
+
+        // pmu_sleep_config_default + pmu_sleep_init.
+
+        let power = PowerSleepConfig::defaults(self.pd_flags);
+        power.apply();
+
+        // Needs to happen after rtc_clk_cpu_freq_set_xtal
+        let config = if self.deep {
+            SleepTimeConfig::deep_sleep()
+        } else {
+            SleepTimeConfig::light_sleep(self.pd_flags)
+        };
+
+        let mut param =
+            ParamSleepConfig::defaults(config, self.pd_flags, power.hp_sys.xtal.xpd_xtal());
+
+        if self.deep {
+            const PMU_LP_ANALOG_WAIT_TARGET_TIME_DSLP_US: u32 = 500;
+            param.lp_sys.analog_wait_target_cycle =
+                config.us_to_slowclk(PMU_LP_ANALOG_WAIT_TARGET_TIME_DSLP_US) as u8;
+
+            AnalogSleepConfig::defaults_deep_sleep().apply();
+        } else {
+            AnalogSleepConfig::defaults_light_sleep(self.pd_flags).apply();
+            DigitalSleepConfig::defaults_light_sleep(self.pd_flags).apply();
+        }
+
+        param.apply();
 
         // like esp-idf pmu_sleep_start()
 
