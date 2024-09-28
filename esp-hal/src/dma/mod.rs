@@ -1056,7 +1056,7 @@ pub const fn descriptor_count(buffer_size: usize, chunk_size: usize, is_circular
 }
 
 /// Compute max chunk size based on block size.
-const fn max_chunk_size(block_size: Option<DmaBufBlkSize>) -> usize {
+pub(crate) const fn max_chunk_size(block_size: Option<DmaBufBlkSize>) -> usize {
     match block_size {
         Some(size) => 4096 - size as usize,
         #[cfg(esp32)]
@@ -1066,17 +1066,17 @@ const fn max_chunk_size(block_size: Option<DmaBufBlkSize>) -> usize {
     }
 }
 
-#[derive(Debug)]
+#[derive(Default, Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-struct DescriptorSet<'a> {
+pub(crate) struct DescriptorSet<'a> {
     descriptors: &'a mut [DmaDescriptor],
 }
 
 impl<'a> DescriptorSet<'a> {
     /// Creates a new `DescriptorSet` from a slice of descriptors and associates
     /// them with the given buffer.
-    fn new(descriptors: &'a mut [DmaDescriptor]) -> Result<Self, DmaBufError> {
-        if !is_slice_in_dram(descriptors) {
+    pub fn new(descriptors: &'a mut [DmaDescriptor]) -> Result<Self, DmaBufError> {
+        if descriptors.len() > 0 && !is_slice_in_dram(descriptors) {
             return Err(DmaBufError::UnsupportedMemoryRegion);
         }
 
@@ -1092,22 +1092,22 @@ impl<'a> DescriptorSet<'a> {
     ///
     /// The caller must ensure that the descriptors are located in a supported
     /// memory region.
-    unsafe fn new_unchecked(descriptors: &'a mut [DmaDescriptor]) -> Self {
+    pub unsafe fn new_unchecked(descriptors: &'a mut [DmaDescriptor]) -> Self {
         Self { descriptors }
     }
 
     /// Consumes the `DescriptorSet` and returns the inner slice of descriptors.
-    fn into_inner(self) -> &'a mut [DmaDescriptor] {
+    pub fn into_inner(self) -> &'a mut [DmaDescriptor] {
         self.descriptors
     }
 
     /// Returns a pointer to the first descriptor in the chain.
-    fn head(&mut self) -> *mut DmaDescriptor {
+    pub fn head(&mut self) -> *mut DmaDescriptor {
         self.descriptors.as_mut_ptr()
     }
 
     /// Returns an iterator over the linked descriptors.
-    fn linked_iter(&self) -> impl Iterator<Item = &DmaDescriptor> {
+    pub fn linked_iter(&self) -> impl Iterator<Item = &DmaDescriptor> {
         let mut was_last = false;
         self.descriptors.iter().take_while(move |d| {
             if was_last {
@@ -1120,7 +1120,7 @@ impl<'a> DescriptorSet<'a> {
     }
 
     /// Returns an iterator over the linked descriptors.
-    fn linked_iter_mut(&mut self) -> impl Iterator<Item = &mut DmaDescriptor> {
+    pub fn linked_iter_mut(&mut self) -> impl Iterator<Item = &mut DmaDescriptor> {
         let mut was_last = false;
         self.descriptors.iter_mut().take_while(move |d| {
             if was_last {
@@ -1137,7 +1137,7 @@ impl<'a> DescriptorSet<'a> {
     /// This function checks the alignment and location of the buffer.
     ///
     /// See [`Self::set_up_buffer_ptrs`] for more details.
-    fn link_with_buffer(
+    pub fn link_with_buffer(
         &mut self,
         buffer: &mut [u8],
         chunk_size: usize,
@@ -1148,7 +1148,7 @@ impl<'a> DescriptorSet<'a> {
     /// Prepares descriptors for transferring `len` bytes of data.
     ///
     /// See [`Self::set_up_descriptors`] for more details.
-    fn set_length(
+    pub fn set_length(
         &mut self,
         len: usize,
         chunk_size: usize,
@@ -1160,7 +1160,7 @@ impl<'a> DescriptorSet<'a> {
     /// Prepares descriptors for reading `len` bytes of data.
     ///
     /// See [`Self::set_up_descriptors`] for more details.
-    fn set_rx_length(&mut self, len: usize, chunk_size: usize) -> Result<(), DmaBufError> {
+    pub fn set_rx_length(&mut self, len: usize, chunk_size: usize) -> Result<(), DmaBufError> {
         self.set_length(len, chunk_size, |desc, chunk_size| {
             desc.set_size(chunk_size);
         })
@@ -1169,7 +1169,7 @@ impl<'a> DescriptorSet<'a> {
     /// Prepares descriptors for writing `len` bytes of data.
     ///
     /// See [`Self::set_up_descriptors`] for more details.
-    fn set_tx_length(&mut self, len: usize, chunk_size: usize) -> Result<(), DmaBufError> {
+    pub fn set_tx_length(&mut self, len: usize, chunk_size: usize) -> Result<(), DmaBufError> {
         self.set_length(len, chunk_size, |desc, chunk_size| {
             desc.set_length(chunk_size);
         })

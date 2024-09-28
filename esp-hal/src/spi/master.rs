@@ -81,7 +81,20 @@ use super::{
 };
 use crate::{
     clock::Clocks,
-    dma::{DmaChannelConvert, DmaEligible, DmaRxBuffer, DmaTxBuffer, PeripheralMarker, Rx, Tx},
+    dma::{
+        max_chunk_size,
+        DescriptorSet,
+        DmaChannelConvert,
+        DmaDescriptor,
+        DmaEligible,
+        DmaPeripheral,
+        DmaRxBuffer,
+        DmaTxBuffer,
+        PeripheralMarker,
+        Preparation,
+        Rx,
+        Tx,
+    },
     gpio::{InputSignal, NoPin, OutputSignal, PeripheralInput, PeripheralOutput},
     interrupt::InterruptHandler,
     peripheral::{Peripheral, PeripheralRef},
@@ -932,6 +945,7 @@ mod dma {
     use core::{
         cmp::min,
         mem::ManuallyDrop,
+        ops::{Deref, DerefMut},
         sync::atomic::{fence, Ordering},
     };
 
@@ -950,6 +964,465 @@ mod dma {
         InterruptConfigurable,
         Mode,
     };
+
+    struct DropGuard<I, F: FnOnce(I)> {
+        inner: ManuallyDrop<I>,
+        on_drop: ManuallyDrop<F>,
+    }
+
+    impl<I, F: FnOnce(I)> DropGuard<I, F> {
+        fn new(inner: I, on_drop: F) -> Self {
+            Self {
+                inner: ManuallyDrop::new(inner),
+                on_drop: ManuallyDrop::new(on_drop),
+            }
+        }
+
+        fn defuse(self) {}
+    }
+
+    impl<I, F: FnOnce(I)> Drop for DropGuard<I, F> {
+        fn drop(&mut self) {
+            let inner = unsafe { ManuallyDrop::take(&mut self.inner) };
+            let on_drop = unsafe { ManuallyDrop::take(&mut self.on_drop) };
+            (on_drop)(inner)
+        }
+    }
+
+    impl<I, F: FnOnce(I)> Deref for DropGuard<I, F> {
+        type Target = I;
+
+        fn deref(&self) -> &I {
+            &self.inner
+        }
+    }
+
+    impl<I, F: FnOnce(I)> DerefMut for DropGuard<I, F> {
+        fn deref_mut(&mut self) -> &mut I {
+            &mut self.inner
+        }
+    }
+
+    struct BorrowedRxBuffer<'a> {
+        parent_buffer: &'a mut DmaRxBuf,
+        data: &'static mut [u8],
+        descriptors: &'static mut [DmaDescriptor],
+    }
+
+    impl<'a> BorrowedRxBuffer<'a> {
+        fn new(parent_buffer: &'a mut DmaRxBuf) -> Self {
+            let (descriptors, data) = core::mem::take(parent_buffer).split();
+            Self {
+                parent_buffer,
+                data,
+                descriptors,
+            }
+        }
+    }
+
+    impl Drop for BorrowedRxBuffer<'_> {
+        fn drop(&mut self) {
+            let descriptors = core::mem::take(&mut self.descriptors);
+            let buffer = core::mem::take(&mut self.data);
+
+            *self.parent_buffer = unwrap!(DmaRxBuf::new(descriptors, buffer));
+        }
+    }
+
+    struct BorrowedTxBuffer<'a> {
+        parent_buffer: &'a mut DmaTxBuf,
+        data: &'static mut [u8],
+        descriptors: &'static mut [DmaDescriptor],
+    }
+
+    impl<'a> BorrowedTxBuffer<'a> {
+        fn new(parent_buffer: &'a mut DmaTxBuf) -> Self {
+            let (descriptors, data) = core::mem::take(parent_buffer).split();
+            Self {
+                parent_buffer,
+                data,
+                descriptors,
+            }
+        }
+    }
+
+    impl Drop for BorrowedTxBuffer<'_> {
+        fn drop(&mut self) {
+            let descriptors = core::mem::take(&mut self.descriptors);
+            let buffer = core::mem::take(&mut self.data);
+
+            *self.parent_buffer = unwrap!(DmaTxBuf::new(descriptors, buffer));
+        }
+    }
+
+    struct SpiDmaRxBuffer<'a> {
+        buffer: BorrowedRxBuffer<'a>,
+        data: core::slice::ChunksMut<'a, u8>,
+    }
+
+    impl<'a> SpiDmaRxBuffer<'a> {
+        fn new(rx_buf: &'a mut DmaRxBuf, data: &'a mut [u8]) -> Self {
+            let chunk_size = rx_buf.capacity();
+            Self::new_with_chunk_size(rx_buf, data, chunk_size)
+        }
+
+        fn new_with_chunk_size(
+            rx_buf: &'a mut DmaRxBuf,
+            data: &'a mut [u8],
+            chunk_size: usize,
+        ) -> Self {
+            Self {
+                buffer: BorrowedRxBuffer::new(rx_buf),
+                data: data.chunks_mut(chunk_size),
+            }
+        }
+
+        fn next(&mut self) -> Option<SpiRxChunk<'_>> {
+            self.data
+                .next()
+                .map(move |chunk| SpiRxChunk::new(self.buffer.descriptors, self.buffer.data, chunk))
+        }
+    }
+
+    struct SpiRxChunk<'a> {
+        descriptors: DescriptorSet<'a>,
+        buffer: &'a mut [u8],
+        chunk: &'a mut [u8],
+    }
+
+    impl<'a> SpiRxChunk<'a> {
+        fn new(
+            descriptors: &'a mut [DmaDescriptor],
+            buffer: &'a mut [u8],
+            chunk: &'a mut [u8],
+        ) -> Self {
+            assert!(chunk.len() <= buffer.len());
+
+            let mut buf = Self {
+                descriptors: unwrap!(DescriptorSet::new(descriptors)),
+                buffer,
+                chunk,
+            };
+
+            unwrap!(buf
+                .descriptors
+                .link_with_buffer(buf.buffer, max_chunk_size(None)));
+            unwrap!(buf
+                .descriptors
+                .set_rx_length(buf.chunk.len(), max_chunk_size(None)));
+
+            buf
+        }
+    }
+
+    unsafe impl DmaRxBuffer for SpiRxChunk<'_> {
+        fn prepare(&mut self) -> Preparation {
+            for desc in self.descriptors.linked_iter_mut() {
+                desc.reset_for_rx();
+            }
+
+            Preparation {
+                start: self.descriptors.head(),
+                block_size: None,
+            }
+        }
+
+        fn length(&self) -> usize {
+            self.descriptors
+                .linked_iter()
+                .map(|d| d.size())
+                .sum::<usize>()
+        }
+    }
+
+    impl Drop for SpiRxChunk<'_> {
+        fn drop(&mut self) {
+            let chunks = self.descriptors.linked_iter().map(|desc| {
+                // SAFETY: We set up the descriptor to point to a subslice of the buffer, and
+                // here we are only recreating that slice with a perhaps shorter length.
+                // We are also not accessing `self.buffer` while this slice is alive, so we
+                // are not violating any aliasing rules.
+                unsafe { core::slice::from_raw_parts(desc.buffer.cast_const(), desc.len()) }
+            });
+            let mut buf = &mut *self.chunk;
+            for chunk in chunks {
+                if buf.is_empty() {
+                    break;
+                }
+                let to_fill;
+                (to_fill, buf) = buf.split_at_mut(chunk.len());
+                to_fill.copy_from_slice(chunk);
+            }
+
+            debug_assert!(buf.is_empty());
+        }
+    }
+
+    struct SpiDmaTxBuffer<'a> {
+        buffer: BorrowedTxBuffer<'a>,
+        data: core::slice::Chunks<'a, u8>,
+    }
+
+    impl<'a> SpiDmaTxBuffer<'a> {
+        fn new(tx_buf: &'a mut DmaTxBuf, data: &'a [u8]) -> Self {
+            let chunk_size = tx_buf.capacity();
+
+            Self::new_with_chunk_size(tx_buf, data, chunk_size)
+        }
+
+        fn new_with_chunk_size(
+            tx_buf: &'a mut DmaTxBuf,
+            data: &'a [u8],
+            chunk_size: usize,
+        ) -> Self {
+            Self {
+                buffer: BorrowedTxBuffer::new(tx_buf),
+                data: data.chunks(chunk_size),
+            }
+        }
+
+        fn next(&mut self) -> Option<SpiTxChunk<'_>> {
+            self.data
+                .next()
+                .map(move |chunk| SpiTxChunk::new(self.buffer.descriptors, self.buffer.data, chunk))
+        }
+    }
+
+    struct SpiTxChunk<'a> {
+        descriptors: DescriptorSet<'a>,
+        buffer: &'a mut [u8],
+    }
+
+    impl<'a> SpiTxChunk<'a> {
+        fn new(descriptors: &'a mut [DmaDescriptor], buffer: &'a mut [u8], data: &[u8]) -> Self {
+            let mut buf = Self {
+                descriptors: unwrap!(DescriptorSet::new(descriptors)),
+                buffer,
+            };
+
+            unwrap!(buf
+                .descriptors
+                .link_with_buffer(buf.buffer, max_chunk_size(None)));
+            buf.fill(data);
+
+            buf
+        }
+
+        fn fill(&mut self, data: &[u8]) {
+            let len = data.len();
+            assert!(len <= self.buffer.len());
+
+            unwrap!(self.descriptors.set_tx_length(len, max_chunk_size(None)));
+            self.buffer[..len].copy_from_slice(data);
+        }
+    }
+
+    unsafe impl DmaTxBuffer for SpiTxChunk<'_> {
+        fn prepare(&mut self) -> Preparation {
+            for desc in self.descriptors.linked_iter_mut() {
+                // In non-circular mode, we only set `suc_eof` for the last descriptor to signal
+                // the end of the transfer.
+                desc.reset_for_tx(desc.next.is_null());
+            }
+
+            Preparation {
+                start: self.descriptors.head(),
+                block_size: None,
+            }
+        }
+
+        fn length(&self) -> usize {
+            self.descriptors
+                .linked_iter()
+                .map(|d| d.len())
+                .sum::<usize>()
+        }
+    }
+
+    struct SpiDmaRxTxBuffer<'a> {
+        rx_buffer: BorrowedRxBuffer<'a>,
+        tx_buffer: BorrowedTxBuffer<'a>,
+        data: core::slice::ChunksMut<'a, u8>,
+    }
+
+    impl<'a> SpiDmaRxTxBuffer<'a> {
+        fn new(rx_buf: &'a mut DmaRxBuf, tx_buf: &'a mut DmaTxBuf, data: &'a mut [u8]) -> Self {
+            let chunk_size = core::cmp::min(rx_buf.capacity(), tx_buf.capacity());
+            Self::new_with_chunk_size(rx_buf, tx_buf, data, chunk_size)
+        }
+
+        fn new_with_chunk_size(
+            rx_buf: &'a mut DmaRxBuf,
+            tx_buf: &'a mut DmaTxBuf,
+            data: &'a mut [u8],
+            chunk_size: usize,
+        ) -> Self {
+            Self {
+                rx_buffer: BorrowedRxBuffer::new(rx_buf),
+                tx_buffer: BorrowedTxBuffer::new(tx_buf),
+                data: data.chunks_mut(chunk_size),
+            }
+        }
+
+        fn next(&mut self) -> Option<SpiRxTxChunk<'_>> {
+            self.data.next().map(move |chunk| {
+                SpiRxTxChunk::new(
+                    self.rx_buffer.descriptors,
+                    self.tx_buffer.descriptors,
+                    self.rx_buffer.data,
+                    chunk,
+                )
+            })
+        }
+    }
+
+    struct SpiRxTxChunk<'a> {
+        rx_descriptors: DescriptorSet<'a>,
+        tx_descriptors: DescriptorSet<'a>,
+        buffer: &'a mut [u8],
+        chunk: &'a mut [u8],
+    }
+
+    impl<'a> SpiRxTxChunk<'a> {
+        fn new(
+            rx_descriptors: &'a mut [DmaDescriptor],
+            tx_descriptors: &'a mut [DmaDescriptor],
+            buffer: &'a mut [u8],
+            chunk: &'a mut [u8],
+        ) -> Self {
+            let len = chunk.len();
+            assert!(len <= buffer.len());
+
+            let mut buf = Self {
+                rx_descriptors: unwrap!(DescriptorSet::new(rx_descriptors)),
+                tx_descriptors: unwrap!(DescriptorSet::new(tx_descriptors)),
+                buffer,
+                chunk,
+            };
+            unwrap!(buf
+                .rx_descriptors
+                .link_with_buffer(buf.buffer, max_chunk_size(None)));
+            unwrap!(buf
+                .tx_descriptors
+                .link_with_buffer(buf.buffer, max_chunk_size(None)));
+
+            unwrap!(buf.rx_descriptors.set_rx_length(len, max_chunk_size(None)));
+            unwrap!(buf.tx_descriptors.set_tx_length(len, max_chunk_size(None)));
+            buf.buffer[..len].copy_from_slice(buf.chunk);
+
+            buf
+        }
+    }
+
+    unsafe impl DmaTxBuffer for SpiRxTxChunk<'_> {
+        fn prepare(&mut self) -> Preparation {
+            for desc in self.tx_descriptors.linked_iter_mut() {
+                // In non-circular mode, we only set `suc_eof` for the last descriptor to signal
+                // the end of the transfer.
+                desc.reset_for_tx(desc.next.is_null());
+            }
+
+            Preparation {
+                start: self.tx_descriptors.head(),
+                block_size: None,
+            }
+        }
+
+        fn length(&self) -> usize {
+            self.tx_descriptors
+                .linked_iter()
+                .map(|d| d.len())
+                .sum::<usize>()
+        }
+    }
+
+    unsafe impl DmaRxBuffer for SpiRxTxChunk<'_> {
+        fn prepare(&mut self) -> Preparation {
+            for desc in self.rx_descriptors.linked_iter_mut() {
+                desc.reset_for_rx();
+            }
+
+            Preparation {
+                start: self.rx_descriptors.head(),
+                block_size: None,
+            }
+        }
+
+        fn length(&self) -> usize {
+            self.rx_descriptors
+                .linked_iter()
+                .map(|d: &DmaDescriptor| d.size())
+                .sum::<usize>()
+        }
+    }
+
+    impl Drop for SpiRxTxChunk<'_> {
+        fn drop(&mut self) {
+            let chunks = self.rx_descriptors.linked_iter().map(|desc| {
+                // SAFETY: We set up the descriptor to point to a subslice of the buffer, and
+                // here we are only recreating that slice with a perhaps shorter length.
+                // We are also not accessing `self.buffer` while this slice is alive, so we
+                // are not violating any aliasing rules.
+                unsafe { core::slice::from_raw_parts(desc.buffer.cast_const(), desc.len()) }
+            });
+            let mut buf = &mut *self.chunk;
+            for chunk in chunks {
+                if buf.is_empty() {
+                    break;
+                }
+                let to_fill;
+                (to_fill, buf) = buf.split_at_mut(chunk.len());
+                to_fill.copy_from_slice(chunk);
+            }
+
+            debug_assert!(buf.is_empty());
+        }
+    }
+
+    impl<'d, M> Spi<'d, crate::peripherals::SPI2, M>
+    where
+        M: DuplexMode,
+    {
+        /// Configures the SPI instance to use DMA with the specified channel.
+        ///
+        /// This method prepares the SPI instance for DMA transfers. It
+        /// initializes the DMA channel for transmission and returns an
+        /// instance of `SpiDma` that supports DMA operations.
+        pub fn with_dma<C, DmaMode>(
+            self,
+            channel: Channel<'d, C, DmaMode>,
+        ) -> SpiDma<'d, crate::peripherals::SPI2, C, M, DmaMode>
+        where
+            C: DmaChannel,
+            C::P: SpiPeripheral + Spi2Peripheral,
+            DmaMode: Mode,
+        {
+            SpiDma::new(self.spi, channel)
+        }
+    }
+
+    #[cfg(spi3)]
+    impl<'d, M> Spi<'d, crate::peripherals::SPI3, M>
+    where
+        M: DuplexMode,
+    {
+        /// Configures the SPI3 instance to use DMA with the specified channel.
+        ///
+        /// This method prepares the SPI instance for DMA transfers using SPI3
+        /// and returns an instance of `SpiDma` that supports DMA
+        /// operations.
+        pub fn with_dma<C, DmaMode>(
+            self,
+            channel: Channel<'d, C, DmaMode>,
+        ) -> SpiDma<'d, crate::peripherals::SPI3, C, M, DmaMode>
+        where
+            C: DmaChannel,
+            C::P: SpiPeripheral + Spi3Peripheral,
+            DmaMode: Mode,
+        {
+            SpiDma::new(self.spi, channel)
+        }
+    }
 
     /// A DMA capable SPI instance.
     ///
@@ -1171,6 +1644,26 @@ mod dma {
                 self.spi.start_transfer_dma(
                     rx_buffer,
                     tx_buffer,
+                    &mut self.channel.rx,
+                    &mut self.channel.tx,
+                )
+            }
+        }
+
+        /// # Safety:
+        ///
+        /// The caller must ensure to not access the buffer contents while the
+        /// transfer is in progress. Moving the buffer itself is allowed.
+        #[cfg_attr(place_spi_driver_in_ram, ram)]
+        unsafe fn start_transfer_dma_in_place<Buf: DmaRxBuffer + DmaTxBuffer>(
+            &mut self,
+            buffer: &mut Buf,
+        ) -> Result<(), Error> {
+            self.rx_transfer_in_progress = DmaRxBuffer::length(buffer) > 0;
+            self.tx_transfer_in_progress = DmaTxBuffer::length(buffer) > 0;
+            unsafe {
+                self.spi.start_transfer_dma_in_place(
+                    buffer,
                     &mut self.channel.rx,
                     &mut self.channel.tx,
                 )
@@ -1461,6 +1954,25 @@ mod dma {
             self.start_transfer_dma(rx_buffer, tx_buffer)
         }
 
+        /// # Safety:
+        ///
+        /// The caller must ensure that the buffers are not accessed while the
+        /// transfer is in progress. Moving the buffers is allowed.
+        #[cfg_attr(place_spi_driver_in_ram, ram)]
+        unsafe fn start_dma_transfer_in_place<Buf: DmaRxBuffer + DmaTxBuffer>(
+            &mut self,
+            buffer: &mut Buf,
+        ) -> Result<(), Error> {
+            let bytes_to_read = DmaRxBuffer::length(buffer);
+            let bytes_to_write = DmaTxBuffer::length(buffer);
+
+            if bytes_to_write > MAX_DMA_SIZE || bytes_to_read > MAX_DMA_SIZE {
+                return Err(Error::MaxDmaTransferSizeExceeded);
+            }
+
+            self.start_transfer_dma_in_place(buffer)
+        }
+
         /// Perform a DMA transfer
         ///
         /// This will return a [SpiDmaTransfer] owning the buffers and
@@ -1701,14 +2213,11 @@ mod dma {
         /// Reads data from the SPI bus using DMA.
         pub fn read(&mut self, words: &mut [u8]) -> Result<(), Error> {
             self.wait_for_idle();
-            for chunk in words.chunks_mut(self.rx_buf.capacity()) {
-                self.rx_buf.set_length(chunk.len());
 
-                unsafe { self.spi_dma.start_dma_read(&mut self.rx_buf)? };
-                self.wait_for_idle();
-
-                let bytes_read = self.rx_buf.read_received_data(chunk);
-                debug_assert_eq!(bytes_read, chunk.len());
+            let mut chunks = SpiDmaRxBuffer::new(&mut self.rx_buf, words);
+            while let Some(mut chunk) = chunks.next() {
+                unsafe { self.spi_dma.start_dma_read(&mut chunk)? };
+                self.spi_dma.wait_for_idle();
             }
 
             Ok(())
@@ -1717,13 +2226,11 @@ mod dma {
         /// Writes data to the SPI bus using DMA.
         pub fn write(&mut self, words: &[u8]) -> Result<(), Error> {
             self.wait_for_idle();
-            for chunk in words.chunks(self.tx_buf.capacity()) {
-                self.tx_buf.fill(chunk);
 
-                unsafe {
-                    self.spi_dma.start_dma_write(&mut self.tx_buf)?;
-                }
-                self.wait_for_idle();
+            let mut chunks = SpiDmaTxBuffer::new(&mut self.tx_buf, words);
+            while let Some(mut chunk) = chunks.next() {
+                unsafe { self.spi_dma.start_dma_write(&mut chunk)? };
+                self.spi_dma.wait_for_idle();
             }
 
             Ok(())
@@ -1738,22 +2245,21 @@ mod dma {
             let (read_common, read_remainder) = read.split_at_mut(common_length);
             let (write_common, write_remainder) = write.split_at(common_length);
 
-            for (read_chunk, write_chunk) in read_common
-                .chunks_mut(chunk_size)
-                .zip(write_common.chunks(chunk_size))
+            let mut read_chunks =
+                SpiDmaRxBuffer::new_with_chunk_size(&mut self.rx_buf, read_common, chunk_size);
+            let mut write_chunks =
+                SpiDmaTxBuffer::new_with_chunk_size(&mut self.tx_buf, write_common, chunk_size);
+            while let (Some(mut read_chunk), Some(mut write_chunk)) =
+                (read_chunks.next(), write_chunks.next())
             {
-                self.tx_buf.fill(write_chunk);
-                self.rx_buf.set_length(read_chunk.len());
-
                 unsafe {
                     self.spi_dma
-                        .start_dma_transfer(&mut self.rx_buf, &mut self.tx_buf)?;
+                        .start_dma_transfer(&mut read_chunk, &mut write_chunk)?;
                 }
-                self.wait_for_idle();
-
-                let bytes_read = self.rx_buf.read_received_data(read_chunk);
-                debug_assert_eq!(bytes_read, read_chunk.len());
+                self.spi_dma.wait_for_idle();
             }
+
+            core::mem::drop((read_chunks, write_chunks));
 
             if !read_remainder.is_empty() {
                 self.read(read_remainder)
@@ -1767,20 +2273,10 @@ mod dma {
         /// Transfers data in place on the SPI bus using DMA.
         pub fn transfer_in_place(&mut self, words: &mut [u8]) -> Result<(), Error> {
             self.wait_for_idle();
-            let chunk_size = min(self.tx_buf.capacity(), self.rx_buf.capacity());
-
-            for chunk in words.chunks_mut(chunk_size) {
-                self.tx_buf.fill(chunk);
-                self.rx_buf.set_length(chunk.len());
-
-                unsafe {
-                    self.spi_dma
-                        .start_dma_transfer(&mut self.rx_buf, &mut self.tx_buf)?;
-                }
-                self.wait_for_idle();
-
-                let bytes_read = self.rx_buf.read_received_data(chunk);
-                debug_assert_eq!(bytes_read, chunk.len());
+            let mut chunks = SpiDmaRxTxBuffer::new(&mut self.rx_buf, &mut self.tx_buf, words);
+            while let Some(mut chunk) = chunks.next() {
+                unsafe { self.spi_dma.start_dma_transfer_in_place(&mut chunk)? };
+                self.spi_dma.wait_for_idle();
             }
 
             Ok(())
@@ -1886,10 +2382,7 @@ mod dma {
 
     /// Async functionality
     mod asynch {
-        use core::{
-            cmp::min,
-            ops::{Deref, DerefMut},
-        };
+        use core::cmp::min;
 
         use super::*;
 
@@ -1938,20 +2431,13 @@ mod dma {
             /// Fill the given buffer with data from the bus.
             pub async fn read_async(&mut self, words: &mut [u8]) -> Result<(), Error> {
                 self.spi_dma.wait_for_idle_async().await;
-                let chunk_size = self.rx_buf.capacity();
 
-                for chunk in words.chunks_mut(chunk_size) {
-                    self.rx_buf.set_length(chunk.len());
-
+                let mut chunks = SpiDmaRxBuffer::new(&mut self.rx_buf, words);
+                while let Some(mut chunk) = chunks.next() {
                     let mut spi = DropGuard::new(&mut self.spi_dma, |spi| spi.cancel_transfer());
 
-                    unsafe {
-                        spi.start_dma_read(&mut self.rx_buf)?;
-                    }
+                    unsafe { spi.start_dma_read(&mut chunk)? };
                     spi.wait_for_idle_async().await;
-
-                    let bytes_read = self.rx_buf.read_received_data(chunk);
-                    debug_assert_eq!(bytes_read, chunk.len());
 
                     spi.defuse();
                 }
@@ -1963,18 +2449,15 @@ mod dma {
             pub async fn write_async(&mut self, words: &[u8]) -> Result<(), Error> {
                 self.spi_dma.wait_for_idle_async().await;
 
-                let mut spi = DropGuard::new(&mut self.spi_dma, |spi| spi.cancel_transfer());
-                let chunk_size = self.tx_buf.capacity();
+                let mut chunks = SpiDmaTxBuffer::new(&mut self.tx_buf, words);
+                while let Some(mut chunk) = chunks.next() {
+                    let mut spi = DropGuard::new(&mut self.spi_dma, |spi| spi.cancel_transfer());
 
-                for chunk in words.chunks(chunk_size) {
-                    self.tx_buf.fill(chunk);
-
-                    unsafe {
-                        spi.start_dma_write(&mut self.tx_buf)?;
-                    }
+                    unsafe { spi.start_dma_write(&mut chunk)? };
                     spi.wait_for_idle_async().await;
+
+                    spi.defuse();
                 }
-                spi.defuse();
 
                 Ok(())
             }
@@ -1988,30 +2471,28 @@ mod dma {
             ) -> Result<(), Error> {
                 self.spi_dma.wait_for_idle_async().await;
 
-                let mut spi = DropGuard::new(&mut self.spi_dma, |spi| spi.cancel_transfer());
                 let chunk_size = min(self.tx_buf.capacity(), self.rx_buf.capacity());
 
                 let common_length = min(read.len(), write.len());
                 let (read_common, read_remainder) = read.split_at_mut(common_length);
                 let (write_common, write_remainder) = write.split_at(common_length);
 
-                for (read_chunk, write_chunk) in read_common
-                    .chunks_mut(chunk_size)
-                    .zip(write_common.chunks(chunk_size))
+                let mut read_chunks =
+                    SpiDmaRxBuffer::new_with_chunk_size(&mut self.rx_buf, read_common, chunk_size);
+                let mut write_chunks =
+                    SpiDmaTxBuffer::new_with_chunk_size(&mut self.tx_buf, write_common, chunk_size);
+                while let (Some(mut read_chunk), Some(mut write_chunk)) =
+                    (read_chunks.next(), write_chunks.next())
                 {
-                    self.tx_buf.fill(write_chunk);
-                    self.rx_buf.set_length(read_chunk.len());
-
+                    let mut spi = DropGuard::new(&mut self.spi_dma, |spi| spi.cancel_transfer());
                     unsafe {
-                        spi.start_dma_transfer(&mut self.rx_buf, &mut self.tx_buf)?;
+                        spi.start_dma_transfer(&mut read_chunk, &mut write_chunk)?;
                     }
                     spi.wait_for_idle_async().await;
-
-                    let bytes_read = self.rx_buf.read_received_data(read_chunk);
-                    assert_eq!(bytes_read, read_chunk.len());
+                    spi.defuse();
                 }
 
-                spi.defuse();
+                core::mem::drop((read_chunks, write_chunks));
 
                 if !read_remainder.is_empty() {
                     self.read_async(read_remainder).await
@@ -2027,21 +2508,15 @@ mod dma {
             pub async fn transfer_in_place_async(&mut self, words: &mut [u8]) -> Result<(), Error> {
                 self.spi_dma.wait_for_idle_async().await;
 
-                let mut spi = DropGuard::new(&mut self.spi_dma, |spi| spi.cancel_transfer());
-                for chunk in words.chunks_mut(self.tx_buf.capacity()) {
-                    self.tx_buf.fill(chunk);
-                    self.rx_buf.set_length(chunk.len());
+                let mut chunks = SpiDmaRxTxBuffer::new(&mut self.rx_buf, &mut self.tx_buf, words);
+                while let Some(mut chunk) = chunks.next() {
+                    let mut spi = DropGuard::new(&mut self.spi_dma, |spi| spi.cancel_transfer());
 
-                    unsafe {
-                        spi.start_dma_transfer(&mut self.rx_buf, &mut self.tx_buf)?;
-                    }
+                    unsafe { spi.start_dma_transfer_in_place(&mut chunk)? };
                     spi.wait_for_idle_async().await;
 
-                    let bytes_read = self.rx_buf.read_received_data(chunk);
-                    assert_eq!(bytes_read, chunk.len());
+                    spi.defuse();
                 }
-
-                spi.defuse();
 
                 Ok(())
             }
@@ -2215,7 +2690,7 @@ mod ehal1 {
 
 #[doc(hidden)]
 pub trait InstanceDma: Instance + DmaEligible {
-    #[allow(clippy::too_many_arguments)]
+    #[cfg_attr(place_spi_driver_in_ram, ram)]
     unsafe fn start_transfer_dma<RX: Rx, TX: Tx>(
         &mut self,
         rx_buffer: &mut impl DmaRxBuffer,
@@ -2244,6 +2719,44 @@ pub trait InstanceDma: Instance + DmaEligible {
         rx.prepare_transfer(self.dma_peripheral(), rx_buffer)
             .and_then(|_| rx.start_transfer())?;
         tx.prepare_transfer(self.dma_peripheral(), tx_buffer)
+            .and_then(|_| tx.start_transfer())?;
+
+        #[cfg(gdma)]
+        self.reset_dma();
+
+        self.start_operation();
+
+        Ok(())
+    }
+
+    #[cfg_attr(place_spi_driver_in_ram, ram)]
+    unsafe fn start_transfer_dma_in_place<RX: Rx, TX: Tx, Buf: DmaRxBuffer + DmaTxBuffer>(
+        &mut self,
+        buffer: &mut Buf,
+        rx: &mut RX,
+        tx: &mut TX,
+    ) -> Result<(), Error> {
+        let reg_block = self.register_block();
+
+        #[cfg(esp32s2)]
+        {
+            // without this a transfer after a write will fail
+            reg_block.dma_out_link().write(|w| w.bits(0));
+            reg_block.dma_in_link().write(|w| w.bits(0));
+        }
+
+        self.configure_datalen(DmaRxBuffer::length(buffer), DmaTxBuffer::length(buffer));
+
+        // re-enable the MISO and MOSI
+        reg_block
+            .user()
+            .modify(|_, w| w.usr_miso().bit(true).usr_mosi().bit(true));
+
+        self.enable_dma();
+
+        rx.prepare_transfer(self.dma_peripheral(), buffer)
+            .and_then(|_| rx.start_transfer())?;
+        tx.prepare_transfer(self.dma_peripheral(), buffer)
             .and_then(|_| tx.start_transfer())?;
 
         #[cfg(gdma)]
