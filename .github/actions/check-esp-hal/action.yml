@@ -60,4 +60,12 @@ runs:
       env:
         CI: 1
       shell: bash
-      run: cargo +${{ inputs.toolchain }} xtask build-examples esp-hal ${{ inputs.device }} --debug
+      run: |
+        cargo +${{ inputs.toolchain }} xtask build-examples esp-hal ${{ inputs.device }} --debug
+        echo '```' >> $GITHUB_STEP_SUMMARY
+        echo "   text    data     bss     dec     hex filename" >> $GITHUB_STEP_SUMMARY
+        for file in $(find examples/target/${{ inputs.target }}/debug -maxdepth 1 -type f -not -name "*.d" -not -name ".cargo-lock" | sort); do
+          echo $file
+          size $file | sed -n '2p' >> $GITHUB_STEP_SUMMARY
+        done
+        echo '```' >> $GITHUB_STEP_SUMMARY
