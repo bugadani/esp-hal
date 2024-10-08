@@ -87,7 +87,6 @@ use crate::{
         DmaChannelConvert,
         DmaDescriptor,
         DmaEligible,
-        DmaPeripheral,
         DmaRxBuffer,
         DmaTxBuffer,
         PeripheralMarker,
@@ -965,46 +964,6 @@ mod dma {
         Mode,
     };
 
-    /// Wraps a resource and calls a function to release the resource when
-    /// dropped.
-    struct DropGuard<I, F: FnOnce(I)> {
-        inner: ManuallyDrop<I>,
-        on_drop: ManuallyDrop<F>,
-    }
-
-    impl<I, F: FnOnce(I)> DropGuard<I, F> {
-        fn new(inner: I, on_drop: F) -> Self {
-            Self {
-                inner: ManuallyDrop::new(inner),
-                on_drop: ManuallyDrop::new(on_drop),
-            }
-        }
-
-        fn defuse(self) {}
-    }
-
-    impl<I, F: FnOnce(I)> Drop for DropGuard<I, F> {
-        fn drop(&mut self) {
-            let inner = unsafe { ManuallyDrop::take(&mut self.inner) };
-            let on_drop = unsafe { ManuallyDrop::take(&mut self.on_drop) };
-            (on_drop)(inner)
-        }
-    }
-
-    impl<I, F: FnOnce(I)> Deref for DropGuard<I, F> {
-        type Target = I;
-
-        fn deref(&self) -> &I {
-            &self.inner
-        }
-    }
-
-    impl<I, F: FnOnce(I)> DerefMut for DropGuard<I, F> {
-        fn deref_mut(&mut self) -> &mut I {
-            &mut self.inner
-        }
-    }
-
     /// Deconstructs a [`DmaRxBuf`] for reuse and restores it on drop.
     struct BorrowedRxBuffer<'a> {
         parent_buffer: &'a mut DmaRxBuf,
@@ -1111,6 +1070,8 @@ mod dma {
     }
 
     unsafe impl DmaRxBuffer for RxChunk<'_> {
+        type View = ();
+
         fn prepare(&mut self) -> Preparation {
             for desc in self.descriptors.linked_iter_mut() {
                 desc.reset_for_rx();
@@ -1127,6 +1088,14 @@ mod dma {
                 .linked_iter()
                 .map(|d| d.size())
                 .sum::<usize>()
+        }
+
+        fn into_view(self) -> Self::View {
+            todo!()
+        }
+
+        fn from_view(_view: Self::View) -> Self {
+            todo!()
         }
     }
 
@@ -1202,6 +1171,8 @@ mod dma {
     }
 
     unsafe impl DmaTxBuffer for TxChunk<'_> {
+        type View = ();
+
         fn prepare(&mut self) -> Preparation {
             prepare_for_tx(&mut self.descriptors)
         }
@@ -1211,6 +1182,14 @@ mod dma {
                 .linked_iter()
                 .map(|d| d.len())
                 .sum::<usize>()
+        }
+
+        fn into_view(self) -> Self::View {
+            todo!()
+        }
+
+        fn from_view(_view: Self::View) -> Self {
+            todo!()
         }
     }
 
@@ -1275,6 +1254,8 @@ mod dma {
     }
 
     unsafe impl DmaTxBuffer for RxTxChunk<'_> {
+        type View = ();
+
         fn prepare(&mut self) -> Preparation {
             prepare_for_tx(&mut self.tx_descriptors)
         }
@@ -1285,15 +1266,33 @@ mod dma {
                 .map(|d| d.len())
                 .sum::<usize>()
         }
+
+        fn into_view(self) -> Self::View {
+            todo!()
+        }
+
+        fn from_view(_view: Self::View) -> Self {
+            todo!()
+        }
     }
 
     unsafe impl DmaRxBuffer for RxTxChunk<'_> {
+        type View = ();
+
         fn prepare(&mut self) -> Preparation {
             self.rx.prepare()
         }
 
         fn length(&self) -> usize {
             self.rx.length()
+        }
+
+        fn into_view(self) -> Self::View {
+            todo!()
+        }
+
+        fn from_view(_view: Self::View) -> Self {
+            todo!()
         }
     }
 
@@ -1307,51 +1306,6 @@ mod dma {
         Preparation {
             start: descriptors.head(),
             block_size: None,
-        }
-    }
-
-    impl<'d, M> Spi<'d, crate::peripherals::SPI2, M>
-    where
-        M: DuplexMode,
-    {
-        /// Configures the SPI instance to use DMA with the specified channel.
-        ///
-        /// This method prepares the SPI instance for DMA transfers. It
-        /// initializes the DMA channel for transmission and returns an
-        /// instance of `SpiDma` that supports DMA operations.
-        pub fn with_dma<C, DmaMode>(
-            self,
-            channel: Channel<'d, C, DmaMode>,
-        ) -> SpiDma<'d, crate::peripherals::SPI2, C, M, DmaMode>
-        where
-            C: DmaChannel,
-            C::P: SpiPeripheral + Spi2Peripheral,
-            DmaMode: Mode,
-        {
-            SpiDma::new(self.spi, channel)
-        }
-    }
-
-    #[cfg(spi3)]
-    impl<'d, M> Spi<'d, crate::peripherals::SPI3, M>
-    where
-        M: DuplexMode,
-    {
-        /// Configures the SPI3 instance to use DMA with the specified channel.
-        ///
-        /// This method prepares the SPI instance for DMA transfers using SPI3
-        /// and returns an instance of `SpiDma` that supports DMA
-        /// operations.
-        pub fn with_dma<C, DmaMode>(
-            self,
-            channel: Channel<'d, C, DmaMode>,
-        ) -> SpiDma<'d, crate::peripherals::SPI3, C, M, DmaMode>
-        where
-            C: DmaChannel,
-            C::P: SpiPeripheral + Spi3Peripheral,
-            DmaMode: Mode,
-        {
-            SpiDma::new(self.spi, channel)
         }
     }
 

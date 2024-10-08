@@ -7,11 +7,11 @@ use crate::soc::is_slice_in_psram;
 
 /// Holds all the information needed to configure a DMA channel for a transfer.
 pub struct Preparation {
-    pub(super) start: *mut DmaDescriptor,
+    pub(crate) start: *mut DmaDescriptor,
     /// block size for PSRAM transfers (TODO: enable burst mode for non external
     /// memory?)
     #[cfg_attr(not(esp32s3), allow(dead_code))]
-    pub(super) block_size: Option<DmaBufBlkSize>,
+    pub(crate) block_size: Option<DmaBufBlkSize>,
     // burst_mode, alignment, check_owner, etc.
 }
 
@@ -119,7 +119,7 @@ pub enum DmaBufBlkSize {
 /// This is a contiguous buffer linked together by DMA descriptors of length
 /// 4095 at most. It can only be used for transmitting data to a peripheral's
 /// FIFO. See [DmaRxBuf] for receiving data.
-#[derive(Debug)]
+#[derive(Default, Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct DmaTxBuf {
     descriptors: DescriptorSet<'static>,
@@ -311,6 +311,7 @@ unsafe impl DmaTxBuffer for DmaTxBuf {
 /// This is a contiguous buffer linked together by DMA descriptors of length
 /// 4092. It can only be used for receiving data from a peripheral's FIFO.
 /// See [DmaTxBuf] for transmitting data.
+#[derive(Default, Debug)]
 pub struct DmaRxBuf {
     descriptors: DescriptorSet<'static>,
     buffer: &'static mut [u8],
@@ -458,6 +459,7 @@ unsafe impl DmaRxBuffer for DmaRxBuf {
 /// descriptors of length 4092 each.
 /// It can be used for simultaneously transmitting to and receiving from a
 /// peripheral's FIFO. These are typically full-duplex transfers.
+#[derive(Default, Debug)]
 pub struct DmaRxTxBuf {
     rx_descriptors: DescriptorSet<'static>,
     tx_descriptors: DescriptorSet<'static>,
