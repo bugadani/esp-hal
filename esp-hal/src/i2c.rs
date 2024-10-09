@@ -230,14 +230,14 @@ impl From<Ack> for u32 {
 }
 
 /// I2C driver
-pub struct I2c<'d, T, DM: crate::Mode> {
+pub struct I2c<'d, DM: crate::Mode, T = AnyI2c> {
     peripheral: PeripheralRef<'d, T>,
     phantom: PhantomData<DM>,
     frequency: HertzU32,
     timeout: Option<u32>,
 }
 
-impl<T> I2c<'_, T, crate::Blocking>
+impl<T> I2c<'_, crate::Blocking, T>
 where
     T: Instance,
 {
@@ -421,7 +421,7 @@ where
     }
 }
 
-impl<T> embedded_hal_02::blocking::i2c::Read for I2c<'_, T, crate::Blocking>
+impl<T> embedded_hal_02::blocking::i2c::Read for I2c<'_, crate::Blocking, T>
 where
     T: Instance,
 {
@@ -432,7 +432,7 @@ where
     }
 }
 
-impl<T> embedded_hal_02::blocking::i2c::Write for I2c<'_, T, crate::Blocking>
+impl<T> embedded_hal_02::blocking::i2c::Write for I2c<'_, crate::Blocking, T>
 where
     T: Instance,
 {
@@ -443,7 +443,7 @@ where
     }
 }
 
-impl<T> embedded_hal_02::blocking::i2c::WriteRead for I2c<'_, T, crate::Blocking>
+impl<T> embedded_hal_02::blocking::i2c::WriteRead for I2c<'_, crate::Blocking, T>
 where
     T: Instance,
 {
@@ -459,11 +459,11 @@ where
     }
 }
 
-impl<T, DM: crate::Mode> embedded_hal::i2c::ErrorType for I2c<'_, T, DM> {
+impl<T, DM: crate::Mode> embedded_hal::i2c::ErrorType for I2c<'_, DM, T> {
     type Error = Error;
 }
 
-impl<T> embedded_hal::i2c::I2c for I2c<'_, T, crate::Blocking>
+impl<T> embedded_hal::i2c::I2c for I2c<'_, crate::Blocking, T>
 where
     T: Instance,
 {
@@ -476,7 +476,7 @@ where
     }
 }
 
-impl<'d, T, DM: crate::Mode> I2c<'d, T, DM>
+impl<'d, T, DM: crate::Mode> I2c<'d, DM, T>
 where
     T: Instance,
 {
@@ -484,7 +484,7 @@ where
         SDA: PeripheralOutput + PeripheralInput,
         SCL: PeripheralOutput + PeripheralInput,
     >(
-        i2c: impl Peripheral<P = T> + 'd,
+        i2c: impl Peripheral<P = impl Into<T> + Instance + 'd> + 'd,
         sda: impl Peripheral<P = SDA> + 'd,
         scl: impl Peripheral<P = SCL> + 'd,
         frequency: HertzU32,
@@ -496,7 +496,7 @@ where
         PeripheralClockControl::enable(i2c.peripheral());
 
         let i2c = I2c {
-            peripheral: i2c,
+            peripheral: i2c.map_into(),
             phantom: PhantomData,
             frequency,
             timeout,
@@ -552,15 +552,12 @@ where
     }
 }
 
-impl<'d, T> I2c<'d, T, crate::Blocking>
-where
-    T: Instance,
-{
+impl<'d> I2c<'d, crate::Blocking> {
     /// Create a new I2C instance
     /// This will enable the peripheral but the peripheral won't get
     /// automatically disabled when this gets dropped.
     pub fn new<SDA: PeripheralOutput + PeripheralInput, SCL: PeripheralOutput + PeripheralInput>(
-        i2c: impl Peripheral<P = T> + 'd,
+        i2c: impl Peripheral<P = impl Into<AnyI2c> + Instance + 'd> + 'd,
         sda: impl Peripheral<P = SDA> + 'd,
         scl: impl Peripheral<P = SCL> + 'd,
         frequency: HertzU32,
@@ -575,7 +572,43 @@ where
         SDA: PeripheralOutput + PeripheralInput,
         SCL: PeripheralOutput + PeripheralInput,
     >(
-        i2c: impl Peripheral<P = T> + 'd,
+        i2c: impl Peripheral<P = impl Into<AnyI2c> + Instance + 'd> + 'd,
+        sda: impl Peripheral<P = SDA> + 'd,
+        scl: impl Peripheral<P = SCL> + 'd,
+        frequency: HertzU32,
+        timeout: Option<u32>,
+    ) -> Self {
+        Self::new_with_timeout_typed(i2c, sda, scl, frequency, timeout)
+    }
+}
+
+impl<'d, T> I2c<'d, crate::Blocking, T>
+where
+    T: Instance,
+{
+    /// Create a new I2C instance
+    /// This will enable the peripheral but the peripheral won't get
+    /// automatically disabled when this gets dropped.
+    pub fn new_typed<
+        SDA: PeripheralOutput + PeripheralInput,
+        SCL: PeripheralOutput + PeripheralInput,
+    >(
+        i2c: impl Peripheral<P = impl Into<T> + Instance + 'd> + 'd,
+        sda: impl Peripheral<P = SDA> + 'd,
+        scl: impl Peripheral<P = SCL> + 'd,
+        frequency: HertzU32,
+    ) -> Self {
+        Self::new_with_timeout_typed(i2c, sda, scl, frequency, None)
+    }
+
+    /// Create a new I2C instance with a custom timeout value.
+    /// This will enable the peripheral but the peripheral won't get
+    /// automatically disabled when this gets dropped.
+    pub fn new_with_timeout_typed<
+        SDA: PeripheralOutput + PeripheralInput,
+        SCL: PeripheralOutput + PeripheralInput,
+    >(
+        i2c: impl Peripheral<P = impl Into<T> + Instance + 'd> + 'd,
         sda: impl Peripheral<P = SDA> + 'd,
         scl: impl Peripheral<P = SCL> + 'd,
         frequency: HertzU32,
@@ -585,9 +618,9 @@ where
     }
 }
 
-impl<'d, T> crate::private::Sealed for I2c<'d, T, crate::Blocking> where T: Instance {}
+impl<'d, T> crate::private::Sealed for I2c<'d, crate::Blocking, T> where T: Instance {}
 
-impl<'d, T> InterruptConfigurable for I2c<'d, T, crate::Blocking>
+impl<'d, T> InterruptConfigurable for I2c<'d, crate::Blocking, T>
 where
     T: Instance,
 {
@@ -596,7 +629,7 @@ where
     }
 }
 
-impl<'d, T> I2c<'d, T, crate::Async>
+impl<'d, T> I2c<'d, crate::Async, T>
 where
     T: Instance,
 {
@@ -666,7 +699,7 @@ mod asynch {
 
     #[cfg(not(esp32))]
     #[must_use = "futures do nothing unless you `.await` or poll them"]
-    pub(crate) struct I2cFuture<'a, T>
+    struct I2cFuture<'a, T>
     where
         T: Instance,
     {
@@ -783,7 +816,7 @@ mod asynch {
         }
     }
 
-    impl<T> I2c<'_, T, crate::Async>
+    impl<T> I2c<'_, crate::Async, T>
     where
         T: Instance,
     {
@@ -1174,7 +1207,7 @@ mod asynch {
         }
     }
 
-    impl<'d, T> embedded_hal_async::i2c::I2c for I2c<'d, T, crate::Async>
+    impl<'d, T> embedded_hal_async::i2c::I2c for I2c<'d, crate::Async, T>
     where
         T: Instance,
     {
@@ -2354,6 +2387,60 @@ impl Instance for crate::peripherals::I2C1 {
     fn interrupt(&self) -> crate::peripherals::Interrupt {
         crate::peripherals::Interrupt::I2C_EXT1
     }
+}
+
+pub struct AnyI2c(AnyI2cInner);
+
+impl crate::private::Sealed for AnyI2c {}
+
+impl From<crate::peripherals::I2C0> for AnyI2c {
+    fn from(i2c: crate::peripherals::I2C0) -> Self {
+        Self(AnyI2cInner::I2c0(i2c))
+    }
+}
+
+#[cfg(i2c1)]
+impl From<crate::peripherals::I2C1> for AnyI2c {
+    fn from(i2c: crate::peripherals::I2C1) -> Self {
+        Self(AnyI2cInner::I2c1(i2c))
+    }
+}
+
+impl PeripheralMarker for AnyI2c {
+    delegate::delegate! {
+        to match &self.0 {
+            AnyI2cInner::I2c0(i2c) => i2c,
+            #[cfg(i2c1)]
+            AnyI2cInner::I2c1(i2c) => i2c,
+        } {
+            fn peripheral(&self) -> crate::system::Peripheral;
+        }
+    }
+}
+
+impl Instance for AnyI2c {
+    delegate::delegate! {
+        to match &self.0 {
+            AnyI2cInner::I2c0(i2c) => i2c,
+            #[cfg(i2c1)]
+            AnyI2cInner::I2c1(i2c) => i2c,
+        } {
+            fn interrupt(&self) -> crate::peripherals::Interrupt;
+            fn async_handler(&self) -> InterruptHandler;
+            fn scl_output_signal(&self) -> OutputSignal;
+            fn scl_input_signal(&self) -> InputSignal;
+            fn sda_output_signal(&self) -> OutputSignal;
+            fn sda_input_signal(&self) -> InputSignal;
+            fn register_block(&self) -> &RegisterBlock;
+            fn i2c_number(&self) -> usize;
+        }
+    }
+}
+
+enum AnyI2cInner {
+    I2c0(crate::peripherals::I2C0),
+    #[cfg(i2c1)]
+    I2c1(crate::peripherals::I2C1),
 }
 
 #[cfg(lp_i2c0)]

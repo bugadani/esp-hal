@@ -8,14 +8,13 @@
 use esp_hal::{
     gpio::Io,
     i2c::{I2c, Operation},
-    peripherals::I2C0,
     prelude::*,
     Blocking,
 };
 use hil_test as _;
 
 struct Context {
-    i2c: I2c<'static, I2C0, Blocking>,
+    i2c: I2c<'static, Blocking>,
 }
 #[cfg(test)]
 #[embedded_test::tests]
