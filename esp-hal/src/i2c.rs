@@ -484,16 +484,13 @@ where
         SDA: PeripheralOutput + PeripheralInput,
         SCL: PeripheralOutput + PeripheralInput,
     >(
-        i2c: impl Peripheral<P = impl Into<T> + Instance + 'd> + 'd,
+        i2c: impl Peripheral<P = impl Into<T> + 'd> + 'd,
         sda: impl Peripheral<P = SDA> + 'd,
         scl: impl Peripheral<P = SCL> + 'd,
         frequency: HertzU32,
         timeout: Option<u32>,
     ) -> Self {
         crate::into_ref!(i2c, sda, scl);
-
-        PeripheralClockControl::reset(i2c.peripheral());
-        PeripheralClockControl::enable(i2c.peripheral());
 
         let i2c = I2c {
             i2c: i2c.map_into(),
@@ -502,6 +499,10 @@ where
             timeout,
         };
 
+        PeripheralClockControl::reset(i2c.i2c.peripheral());
+        PeripheralClockControl::enable(i2c.i2c.peripheral());
+
+        // TODO: implement with_pins et. al.
         // avoid SCL/SDA going low during configuration
         scl.set_output_high(true, crate::private::Internal);
         sda.set_output_high(true, crate::private::Internal);
@@ -545,7 +546,7 @@ impl<'d> I2c<'d, crate::Blocking> {
     /// This will enable the peripheral but the peripheral won't get
     /// automatically disabled when this gets dropped.
     pub fn new<SDA: PeripheralOutput + PeripheralInput, SCL: PeripheralOutput + PeripheralInput>(
-        i2c: impl Peripheral<P = impl Into<AnyI2c> + Instance + 'd> + 'd,
+        i2c: impl Peripheral<P = impl Into<AnyI2c> + 'd> + 'd,
         sda: impl Peripheral<P = SDA> + 'd,
         scl: impl Peripheral<P = SCL> + 'd,
         frequency: HertzU32,
@@ -560,7 +561,7 @@ impl<'d> I2c<'d, crate::Blocking> {
         SDA: PeripheralOutput + PeripheralInput,
         SCL: PeripheralOutput + PeripheralInput,
     >(
-        i2c: impl Peripheral<P = impl Into<AnyI2c> + Instance + 'd> + 'd,
+        i2c: impl Peripheral<P = impl Into<AnyI2c> + 'd> + 'd,
         sda: impl Peripheral<P = SDA> + 'd,
         scl: impl Peripheral<P = SCL> + 'd,
         frequency: HertzU32,
@@ -581,7 +582,7 @@ where
         SDA: PeripheralOutput + PeripheralInput,
         SCL: PeripheralOutput + PeripheralInput,
     >(
-        i2c: impl Peripheral<P = impl Into<T> + Instance + 'd> + 'd,
+        i2c: impl Peripheral<P = impl Into<T> + 'd> + 'd,
         sda: impl Peripheral<P = SDA> + 'd,
         scl: impl Peripheral<P = SCL> + 'd,
         frequency: HertzU32,
@@ -596,7 +597,7 @@ where
         SDA: PeripheralOutput + PeripheralInput,
         SCL: PeripheralOutput + PeripheralInput,
     >(
-        i2c: impl Peripheral<P = impl Into<T> + Instance + 'd> + 'd,
+        i2c: impl Peripheral<P = impl Into<T> + 'd> + 'd,
         sda: impl Peripheral<P = SDA> + 'd,
         scl: impl Peripheral<P = SCL> + 'd,
         frequency: HertzU32,
@@ -2367,6 +2368,18 @@ impl Instance for crate::peripherals::I2C1 {
 
 /// Any I2C peripheral
 pub struct AnyI2c(AnyI2cInner);
+
+impl Peripheral for AnyI2c {
+    type P = Self;
+
+    unsafe fn clone_unchecked(&self) -> Self::P {
+        match &self.0 {
+            AnyI2cInner::I2c0(i2c) => Self::from(i2c.clone_unchecked()),
+            #[cfg(i2c1)]
+            AnyI2cInner::I2c1(i2c) => Self::from(i2c.clone_unchecked()),
+        }
+    }
+}
 
 impl crate::private::Sealed for AnyI2c {}
 
