@@ -75,7 +75,7 @@ use super::{Error, FullDuplexMode, SpiMode};
 use crate::{
     dma::{DescriptorChain, DmaChannelConvert, DmaEligible, PeripheralMarker, Rx, Tx},
     gpio::{
-        interconnect::{AnyInputSignal, AnyOutputSignal},
+        interconnect::{InputConnection, OutputConnection},
         InputSignal,
         OutputSignal,
         PeripheralInput,
@@ -104,10 +104,10 @@ impl<'d> Spi<'d, FullDuplexMode> {
     /// Constructs an SPI instance in 8bit dataframe mode.
     pub fn new(
         spi: impl Peripheral<P = impl Into<AnySpi> + 'd> + 'd,
-        sclk: impl Peripheral<P = impl Into<AnyInputSignal> + 'd> + 'd,
-        mosi: impl Peripheral<P = impl Into<AnyInputSignal> + 'd> + 'd,
-        miso: impl Peripheral<P = impl Into<AnyOutputSignal> + 'd> + 'd,
-        cs: impl Peripheral<P = impl Into<AnyInputSignal> + 'd> + 'd,
+        sclk: impl Peripheral<P = impl Into<InputConnection> + 'd> + 'd,
+        mosi: impl Peripheral<P = impl Into<InputConnection> + 'd> + 'd,
+        miso: impl Peripheral<P = impl Into<OutputConnection> + 'd> + 'd,
+        cs: impl Peripheral<P = impl Into<InputConnection> + 'd> + 'd,
         mode: SpiMode,
     ) -> Spi<'d, FullDuplexMode> {
         Self::new_typed(spi, sclk, mosi, miso, cs, mode)
