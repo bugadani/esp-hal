@@ -259,9 +259,6 @@ macro_rules! lp_gpio {
                 }
             }
         )+
-
-        pub(crate) use handle_rtcio;
-        pub(crate) use handle_rtcio as handle_rtcio_with_resistors;
     }
 }
 
