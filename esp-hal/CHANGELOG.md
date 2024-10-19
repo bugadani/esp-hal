@@ -15,16 +15,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `AnyPin` now implements `From<GpioPin<N>>`. (#2326)
 - Added `AnySpi` and `AnySpiDmaChannel`. (#2334)
 - `Pins::steal()` to unsafely obtain GPIO. (#2335)
+- `Spi::half_duplex_read` and `Spi::half_duplex_write` (#2373)
 
 ### Changed
 
 - Peripheral type erasure for SPI (#2334)
+- The SPI driver has been rewritten to allow using half-duplex and full-duplex functionality on the same bus. See the migration guide for details. (#2373)
 
 ### Fixed
 
 ### Removed
 
 - The `i2s::{I2sWrite, I2sWriteDma, I2sRead, I2sReadDma, I2sWriteDmaAsync, I2sReadDmaAsync}` traits have been removed. (#2316)
+- The `spi::master::HalfDuplexReadWrite` trait has been removed. (#2373)
+- The `Spi::with_pins` methods have been removed. (#2373)
+- The `Spi::new_half_duplex` constructor have been removed. (#2373)
+- The `HalfDuplexMode` and `FullDuplexMode` parameters have been removed from `Spi`. (#2373)
 
 ## [0.21.1]
 
