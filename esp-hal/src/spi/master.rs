@@ -1234,7 +1234,7 @@ mod dma {
         /// bytes.
         #[allow(clippy::type_complexity)]
         #[cfg_attr(place_spi_driver_in_ram, ram)]
-        pub fn dma_write<TX: DmaTxBuffer>(
+        pub fn write<TX: DmaTxBuffer>(
             mut self,
             mut buffer: TX,
         ) -> Result<SpiDmaTransfer<'d, M, TX, T>, (Error, Self, TX)> {
@@ -1273,7 +1273,7 @@ mod dma {
         /// received is 32736 bytes.
         #[allow(clippy::type_complexity)]
         #[cfg_attr(place_spi_driver_in_ram, ram)]
-        pub fn dma_read<RX: DmaRxBuffer>(
+        pub fn read<RX: DmaRxBuffer>(
             mut self,
             mut buffer: RX,
         ) -> Result<SpiDmaTransfer<'d, M, RX, T>, (Error, Self, RX)> {
@@ -1311,7 +1311,7 @@ mod dma {
         /// sent/received is 32736 bytes.
         #[allow(clippy::type_complexity)]
         #[cfg_attr(place_spi_driver_in_ram, ram)]
-        pub fn dma_transfer<RX: DmaRxBuffer, TX: DmaTxBuffer>(
+        pub fn transfer<RX: DmaRxBuffer, TX: DmaTxBuffer>(
             mut self,
             mut rx_buffer: RX,
             mut tx_buffer: TX,
