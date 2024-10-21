@@ -15,22 +15,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `AnyPin` now implements `From<GpioPin<N>>`. (#2326)
 - Added `AnySpi` and `AnySpiDmaChannel`. (#2334)
 - Added `degrade` function for SPI instances (SPI2, SPI3) to obtain `AnySpi`. (#2334)
-- Added `degrade` function for TWAI instances (TWAI0, TWAI1) to obtain `AnyTwai`. (#?)
-
+- Added `degrade` function for TWAI instances (TWAI0, TWAI1) to obtain `AnyTwai`. (#2359)
 - `Pins::steal()` to unsafely obtain GPIO. (#2335)
-- `TwaiConfiguration::into_async` (#?)
+- `TwaiConfiguration::into_async` (#2359)
 
 ### Changed
 
 - Peripheral type erasure for SPI (#2334)
-- Peripheral type erasure for TWAI (#?)
+- Peripheral type erasure for TWAI (#2359)
 
 ### Fixed
 
 ### Removed
 
 - The `i2s::{I2sWrite, I2sWriteDma, I2sRead, I2sReadDma, I2sWriteDmaAsync, I2sReadDmaAsync}` traits have been removed. (#2316)
-- The async TWAI constructors (`new_async`, `new_async_no_transceiver`) have been removed. (#?)
+- The async TWAI constructors (`new_async`, `new_async_no_transceiver`) have been removed. (#2359)
 
 ## [0.21.1]
 
