@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed an issue where interrupts enabled before `esp_hal::init` were disabled. This issue caused the executor created by `#[esp_hal_embassy::main]` to behave incorrectly in multi-core applications. (#2377)
+
 ### Removed
 
 - The `i2s::{I2sWrite, I2sWriteDma, I2sRead, I2sReadDma, I2sWriteDmaAsync, I2sReadDmaAsync}` traits have been removed. (#2316)
