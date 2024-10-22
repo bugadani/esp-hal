@@ -262,5 +262,3 @@ macro_rules! lp_gpio {
         )+
     }
 }
-
-pub(crate) use lp_gpio;
