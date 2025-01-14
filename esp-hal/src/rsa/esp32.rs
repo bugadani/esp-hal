@@ -15,7 +15,14 @@ impl<Dm: crate::DriverMode> Rsa<'_, Dm> {
     /// needs to be initialized, only after that peripheral should be used.
     /// This function would return without an error if the memory is initialized
     pub fn ready(&mut self) -> nb::Result<(), Infallible> {
-        if self.rsa.clean().read().clean().bit_is_clear() {
+        if self
+            .rsa
+            .register_block()
+            .clean()
+            .read()
+            .clean()
+            .bit_is_clear()
+        {
             return Err(nb::Error::WouldBlock);
         }
         Ok(())
@@ -23,25 +30,35 @@ impl<Dm: crate::DriverMode> Rsa<'_, Dm> {
 
     /// Writes the multi-mode configuration to the RSA hardware.
     pub(super) fn write_multi_mode(&mut self, mode: u32) {
-        self.rsa.mult_mode().write(|w| unsafe { w.bits(mode) });
+        self.rsa
+            .register_block()
+            .mult_mode()
+            .write(|w| unsafe { w.bits(mode) });
     }
 
     /// Writes the modular exponentiation mode configuration to the RSA
     /// hardware.
     pub(super) fn write_modexp_mode(&mut self, mode: u32) {
-        self.rsa.modexp_mode().write(|w| unsafe { w.bits(mode) });
+        self.rsa
+            .register_block()
+            .modexp_mode()
+            .write(|w| unsafe { w.bits(mode) });
     }
 
     /// Starts the modular exponentiation operation.
     pub(super) fn write_modexp_start(&self) {
         self.rsa
+            .register_block()
             .modexp_start()
             .write(|w| w.modexp_start().set_bit());
     }
 
     /// Starts the multiplication operation.
     pub(super) fn write_multi_start(&self) {
-        self.rsa.mult_start().write(|w| w.mult_start().set_bit());
+        self.rsa
+            .register_block()
+            .mult_start()
+            .write(|w| w.mult_start().set_bit());
     }
 
     /// Starts the modular multiplication operation.
@@ -51,12 +68,20 @@ impl<Dm: crate::DriverMode> Rsa<'_, Dm> {
 
     /// Clears the RSA interrupt flag.
     pub(super) fn clear_interrupt(&mut self) {
-        self.rsa.interrupt().write(|w| w.interrupt().set_bit());
+        self.rsa
+            .register_block()
+            .interrupt()
+            .write(|w| w.interrupt().set_bit());
     }
 
     /// Checks if the RSA peripheral is idle.
     pub(super) fn is_idle(&self) -> bool {
-        self.rsa.interrupt().read().interrupt().bit_is_set()
+        self.rsa
+            .register_block()
+            .interrupt()
+            .read()
+            .interrupt()
+            .bit_is_set()
     }
 }
 

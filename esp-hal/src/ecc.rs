@@ -128,7 +128,7 @@ impl InterruptConfigurable for Ecc<'_, crate::Blocking> {
 impl<Dm: crate::DriverMode> Ecc<'_, Dm> {
     /// Resets the ECC peripheral.
     pub fn reset(&mut self) {
-        self.ecc.mult_conf().reset()
+        self.ecc.register_block().mult_conf().reset()
     }
 
     /// # Base point multiplication
@@ -167,16 +167,25 @@ impl<Dm: crate::DriverMode> Ecc<'_, Dm> {
 
         let mut tmp = [0_u8; 32];
         self.reverse_words(k, &mut tmp);
-        self.alignment_helper
-            .volatile_write_regset(self.ecc.k_mem(0).as_ptr(), tmp.as_ref(), 8);
+        self.alignment_helper.volatile_write_regset(
+            self.ecc.register_block().k_mem(0).as_ptr(),
+            tmp.as_ref(),
+            8,
+        );
         self.reverse_words(x, &mut tmp);
-        self.alignment_helper
-            .volatile_write_regset(self.ecc.px_mem(0).as_ptr(), tmp.as_ref(), 8);
+        self.alignment_helper.volatile_write_regset(
+            self.ecc.register_block().px_mem(0).as_ptr(),
+            tmp.as_ref(),
+            8,
+        );
         self.reverse_words(y, &mut tmp);
-        self.alignment_helper
-            .volatile_write_regset(self.ecc.py_mem(0).as_ptr(), tmp.as_ref(), 8);
+        self.alignment_helper.volatile_write_regset(
+            self.ecc.register_block().py_mem(0).as_ptr(),
+            tmp.as_ref(),
+            8,
+        );
 
-        self.ecc.mult_conf().write(|w| unsafe {
+        self.ecc.register_block().mult_conf().write(|w| unsafe {
             w.work_mode()
                 .bits(mode as u8)
                 .key_length()
@@ -188,11 +197,17 @@ impl<Dm: crate::DriverMode> Ecc<'_, Dm> {
         // wait for interrupt
         while self.is_busy() {}
 
-        self.alignment_helper
-            .volatile_read_regset(self.ecc.px_mem(0).as_ptr(), &mut tmp, 8);
+        self.alignment_helper.volatile_read_regset(
+            self.ecc.register_block().px_mem(0).as_ptr(),
+            &mut tmp,
+            8,
+        );
         self.reverse_words(tmp.as_ref(), x);
-        self.alignment_helper
-            .volatile_read_regset(self.ecc.py_mem(0).as_ptr(), &mut tmp, 8);
+        self.alignment_helper.volatile_read_regset(
+            self.ecc.register_block().py_mem(0).as_ptr(),
+            &mut tmp,
+            8,
+        );
         self.reverse_words(tmp.as_ref(), y);
 
         Ok(())
@@ -234,13 +249,19 @@ impl<Dm: crate::DriverMode> Ecc<'_, Dm> {
 
         let mut tmp = [0_u8; 32];
         self.reverse_words(k, &mut tmp);
-        self.alignment_helper
-            .volatile_write_regset(self.ecc.k_mem(0).as_ptr(), tmp.as_ref(), 8);
+        self.alignment_helper.volatile_write_regset(
+            self.ecc.register_block().k_mem(0).as_ptr(),
+            tmp.as_ref(),
+            8,
+        );
         self.reverse_words(y, &mut tmp);
-        self.alignment_helper
-            .volatile_write_regset(self.ecc.py_mem(0).as_ptr(), tmp.as_ref(), 8);
+        self.alignment_helper.volatile_write_regset(
+            self.ecc.register_block().py_mem(0).as_ptr(),
+            tmp.as_ref(),
+            8,
+        );
 
-        self.ecc.mult_conf().write(|w| unsafe {
+        self.ecc.register_block().mult_conf().write(|w| unsafe {
             w.work_mode()
                 .bits(mode as u8)
                 .key_length()
@@ -252,8 +273,11 @@ impl<Dm: crate::DriverMode> Ecc<'_, Dm> {
         // wait for interrupt
         while self.is_busy() {}
 
-        self.alignment_helper
-            .volatile_read_regset(self.ecc.py_mem(0).as_ptr(), &mut tmp, 8);
+        self.alignment_helper.volatile_read_regset(
+            self.ecc.register_block().py_mem(0).as_ptr(),
+            &mut tmp,
+            8,
+        );
         self.reverse_words(tmp.as_ref(), y);
 
         Ok(())
@@ -295,13 +319,19 @@ impl<Dm: crate::DriverMode> Ecc<'_, Dm> {
 
         let mut tmp = [0_u8; 32];
         self.reverse_words(x, &mut tmp);
-        self.alignment_helper
-            .volatile_write_regset(self.ecc.px_mem(0).as_ptr(), tmp.as_ref(), 8);
+        self.alignment_helper.volatile_write_regset(
+            self.ecc.register_block().px_mem(0).as_ptr(),
+            tmp.as_ref(),
+            8,
+        );
         self.reverse_words(y, &mut tmp);
-        self.alignment_helper
-            .volatile_write_regset(self.ecc.py_mem(0).as_ptr(), tmp.as_ref(), 8);
+        self.alignment_helper.volatile_write_regset(
+            self.ecc.register_block().py_mem(0).as_ptr(),
+            tmp.as_ref(),
+            8,
+        );
 
-        self.ecc.mult_conf().write(|w| unsafe {
+        self.ecc.register_block().mult_conf().write(|w| unsafe {
             w.work_mode()
                 .bits(mode as u8)
                 .key_length()
@@ -313,8 +343,15 @@ impl<Dm: crate::DriverMode> Ecc<'_, Dm> {
         // wait for interrupt
         while self.is_busy() {}
 
-        if !self.ecc.mult_conf().read().verification_result().bit() {
-            self.ecc.mult_conf().reset();
+        if !self
+            .ecc
+            .register_block()
+            .mult_conf()
+            .read()
+            .verification_result()
+            .bit()
+        {
+            self.ecc.register_block().mult_conf().reset();
             return Err(Error::PointNotOnSelectedCurve);
         }
 
@@ -362,16 +399,25 @@ impl<Dm: crate::DriverMode> Ecc<'_, Dm> {
 
         let mut tmp = [0_u8; 32];
         self.reverse_words(k, &mut tmp);
-        self.alignment_helper
-            .volatile_write_regset(self.ecc.k_mem(0).as_ptr(), tmp.as_ref(), 8);
+        self.alignment_helper.volatile_write_regset(
+            self.ecc.register_block().k_mem(0).as_ptr(),
+            tmp.as_ref(),
+            8,
+        );
         self.reverse_words(x, &mut tmp);
-        self.alignment_helper
-            .volatile_write_regset(self.ecc.px_mem(0).as_ptr(), tmp.as_ref(), 8);
+        self.alignment_helper.volatile_write_regset(
+            self.ecc.register_block().px_mem(0).as_ptr(),
+            tmp.as_ref(),
+            8,
+        );
         self.reverse_words(y, &mut tmp);
-        self.alignment_helper
-            .volatile_write_regset(self.ecc.py_mem(0).as_ptr(), tmp.as_ref(), 8);
+        self.alignment_helper.volatile_write_regset(
+            self.ecc.register_block().py_mem(0).as_ptr(),
+            tmp.as_ref(),
+            8,
+        );
 
-        self.ecc.mult_conf().write(|w| unsafe {
+        self.ecc.register_block().mult_conf().write(|w| unsafe {
             w.work_mode()
                 .bits(mode as u8)
                 .key_length()
@@ -383,16 +429,29 @@ impl<Dm: crate::DriverMode> Ecc<'_, Dm> {
         // wait for interrupt
         while self.is_busy() {}
 
-        if !self.ecc.mult_conf().read().verification_result().bit() {
-            self.ecc.mult_conf().reset();
+        if !self
+            .ecc
+            .register_block()
+            .mult_conf()
+            .read()
+            .verification_result()
+            .bit()
+        {
+            self.ecc.register_block().mult_conf().reset();
             return Err(Error::PointNotOnSelectedCurve);
         }
 
-        self.alignment_helper
-            .volatile_read_regset(self.ecc.px_mem(0).as_ptr(), &mut tmp, 8);
+        self.alignment_helper.volatile_read_regset(
+            self.ecc.register_block().px_mem(0).as_ptr(),
+            &mut tmp,
+            8,
+        );
         self.reverse_words(tmp.as_ref(), x);
-        self.alignment_helper
-            .volatile_read_regset(self.ecc.py_mem(0).as_ptr(), &mut tmp, 8);
+        self.alignment_helper.volatile_read_regset(
+            self.ecc.register_block().py_mem(0).as_ptr(),
+            &mut tmp,
+            8,
+        );
         self.reverse_words(tmp.as_ref(), y);
 
         Ok(())
@@ -445,16 +504,25 @@ impl<Dm: crate::DriverMode> Ecc<'_, Dm> {
 
         let mut tmp = [0_u8; 32];
         self.reverse_words(k, &mut tmp);
-        self.alignment_helper
-            .volatile_write_regset(self.ecc.k_mem(0).as_ptr(), tmp.as_ref(), 8);
+        self.alignment_helper.volatile_write_regset(
+            self.ecc.register_block().k_mem(0).as_ptr(),
+            tmp.as_ref(),
+            8,
+        );
         self.reverse_words(px, &mut tmp);
-        self.alignment_helper
-            .volatile_write_regset(self.ecc.px_mem(0).as_ptr(), tmp.as_ref(), 8);
+        self.alignment_helper.volatile_write_regset(
+            self.ecc.register_block().px_mem(0).as_ptr(),
+            tmp.as_ref(),
+            8,
+        );
         self.reverse_words(py, &mut tmp);
-        self.alignment_helper
-            .volatile_write_regset(self.ecc.py_mem(0).as_ptr(), tmp.as_ref(), 8);
+        self.alignment_helper.volatile_write_regset(
+            self.ecc.register_block().py_mem(0).as_ptr(),
+            tmp.as_ref(),
+            8,
+        );
 
-        self.ecc.mult_conf().write(|w| unsafe {
+        self.ecc.register_block().mult_conf().write(|w| unsafe {
             w.work_mode()
                 .bits(mode as u8)
                 .key_length()
@@ -466,25 +534,47 @@ impl<Dm: crate::DriverMode> Ecc<'_, Dm> {
         // wait for interrupt
         while self.is_busy() {}
 
-        if !self.ecc.mult_conf().read().verification_result().bit() {
-            self.ecc.mult_conf().reset();
+        if !self
+            .ecc
+            .register_block()
+            .mult_conf()
+            .read()
+            .verification_result()
+            .bit()
+        {
+            self.ecc.register_block().mult_conf().reset();
             return Err(Error::PointNotOnSelectedCurve);
         }
 
-        self.alignment_helper
-            .volatile_read_regset(self.ecc.px_mem(0).as_ptr(), &mut tmp, 8);
+        self.alignment_helper.volatile_read_regset(
+            self.ecc.register_block().px_mem(0).as_ptr(),
+            &mut tmp,
+            8,
+        );
         self.reverse_words(tmp.as_ref(), px);
-        self.alignment_helper
-            .volatile_read_regset(self.ecc.py_mem(0).as_ptr(), &mut tmp, 8);
+        self.alignment_helper.volatile_read_regset(
+            self.ecc.register_block().py_mem(0).as_ptr(),
+            &mut tmp,
+            8,
+        );
         self.reverse_words(tmp.as_ref(), py);
-        self.alignment_helper
-            .volatile_read_regset(self.ecc.qx_mem(0).as_ptr(), &mut tmp, 8);
+        self.alignment_helper.volatile_read_regset(
+            self.ecc.register_block().qx_mem(0).as_ptr(),
+            &mut tmp,
+            8,
+        );
         self.reverse_words(tmp.as_ref(), qx);
-        self.alignment_helper
-            .volatile_read_regset(self.ecc.qy_mem(0).as_ptr(), &mut tmp, 8);
+        self.alignment_helper.volatile_read_regset(
+            self.ecc.register_block().qy_mem(0).as_ptr(),
+            &mut tmp,
+            8,
+        );
         self.reverse_words(tmp.as_ref(), qy);
-        self.alignment_helper
-            .volatile_read_regset(self.ecc.qz_mem(0).as_ptr(), &mut tmp, 8);
+        self.alignment_helper.volatile_read_regset(
+            self.ecc.register_block().qz_mem(0).as_ptr(),
+            &mut tmp,
+            8,
+        );
         self.reverse_words(tmp.as_ref(), qz);
 
         Ok(())
@@ -526,16 +616,25 @@ impl<Dm: crate::DriverMode> Ecc<'_, Dm> {
 
         let mut tmp = [0_u8; 32];
         self.reverse_words(k, &mut tmp);
-        self.alignment_helper
-            .volatile_write_regset(self.ecc.k_mem(0).as_ptr(), tmp.as_ref(), 8);
+        self.alignment_helper.volatile_write_regset(
+            self.ecc.register_block().k_mem(0).as_ptr(),
+            tmp.as_ref(),
+            8,
+        );
         self.reverse_words(x, &mut tmp);
-        self.alignment_helper
-            .volatile_write_regset(self.ecc.px_mem(0).as_ptr(), tmp.as_ref(), 8);
+        self.alignment_helper.volatile_write_regset(
+            self.ecc.register_block().px_mem(0).as_ptr(),
+            tmp.as_ref(),
+            8,
+        );
         self.reverse_words(y, &mut tmp);
-        self.alignment_helper
-            .volatile_write_regset(self.ecc.py_mem(0).as_ptr(), tmp.as_ref(), 8);
+        self.alignment_helper.volatile_write_regset(
+            self.ecc.register_block().py_mem(0).as_ptr(),
+            tmp.as_ref(),
+            8,
+        );
 
-        self.ecc.mult_conf().write(|w| unsafe {
+        self.ecc.register_block().mult_conf().write(|w| unsafe {
             w.work_mode()
                 .bits(mode as u8)
                 .key_length()
@@ -549,23 +648,23 @@ impl<Dm: crate::DriverMode> Ecc<'_, Dm> {
         cfg_if::cfg_if! {
             if #[cfg(not(esp32h2))] {
             self.alignment_helper
-                .volatile_read_regset(self.ecc.px_mem(0).as_ptr(), &mut tmp, 8);
+                .volatile_read_regset(self.ecc.register_block().px_mem(0).as_ptr(), &mut tmp, 8);
             self.reverse_words(tmp.as_ref(), x);
             self.alignment_helper
-                .volatile_read_regset(self.ecc.py_mem(0).as_ptr(), &mut tmp, 8);
+                .volatile_read_regset(self.ecc.register_block().py_mem(0).as_ptr(), &mut tmp, 8);
             self.reverse_words(tmp.as_ref(), y);
             self.alignment_helper
-                .volatile_read_regset(self.ecc.k_mem(0).as_ptr(), &mut tmp, 8);
+                .volatile_read_regset(self.ecc.register_block().k_mem(0).as_ptr(), &mut tmp, 8);
             self.reverse_words(tmp.as_ref(), k);
             } else {
             self.alignment_helper
-                .volatile_read_regset(self.ecc.qx_mem(0).as_ptr(), &mut tmp, 8);
+                .volatile_read_regset(self.ecc.register_block().qx_mem(0).as_ptr(), &mut tmp, 8);
             self.reverse_words(tmp.as_ref(), x);
             self.alignment_helper
-                .volatile_read_regset(self.ecc.qy_mem(0).as_ptr(), &mut tmp, 8);
+                .volatile_read_regset(self.ecc.register_block().qy_mem(0).as_ptr(), &mut tmp, 8);
             self.reverse_words(tmp.as_ref(), y);
             self.alignment_helper
-                .volatile_read_regset(self.ecc.qz_mem(0).as_ptr(), &mut tmp, 8);
+                .volatile_read_regset(self.ecc.register_block().qz_mem(0).as_ptr(), &mut tmp, 8);
             self.reverse_words(tmp.as_ref(), k);
             }
         }
@@ -614,26 +713,26 @@ impl<Dm: crate::DriverMode> Ecc<'_, Dm> {
         cfg_if::cfg_if! {
             if #[cfg(not(esp32h2))] {
                 self.alignment_helper
-                    .volatile_write_regset(self.ecc.px_mem(0).as_ptr(), tmp.as_ref(), 8);
+                    .volatile_write_regset(self.ecc.register_block().px_mem(0).as_ptr(), tmp.as_ref(), 8);
                 self.reverse_words(y, &mut tmp);
                 self.alignment_helper
-                    .volatile_write_regset(self.ecc.py_mem(0).as_ptr(), tmp.as_ref(), 8);
+                    .volatile_write_regset(self.ecc.register_block().py_mem(0).as_ptr(), tmp.as_ref(), 8);
                 self.reverse_words(z, &mut tmp);
                 self.alignment_helper
-                    .volatile_write_regset(self.ecc.k_mem(0).as_ptr(), tmp.as_ref(), 8);
+                    .volatile_write_regset(self.ecc.register_block().k_mem(0).as_ptr(), tmp.as_ref(), 8);
             } else {
                 self.alignment_helper
-                    .volatile_write_regset(self.ecc.qx_mem(0).as_ptr(), tmp.as_ref(), 8);
+                    .volatile_write_regset(self.ecc.register_block().qx_mem(0).as_ptr(), tmp.as_ref(), 8);
                 self.reverse_words(y, &mut tmp);
                 self.alignment_helper
-                    .volatile_write_regset(self.ecc.qy_mem(0).as_ptr(), tmp.as_ref(), 8);
+                    .volatile_write_regset(self.ecc.register_block().qy_mem(0).as_ptr(), tmp.as_ref(), 8);
                 self.reverse_words(z, &mut tmp);
                 self.alignment_helper
-                    .volatile_write_regset(self.ecc.qz_mem(0).as_ptr(), tmp.as_ref(), 8);
+                    .volatile_write_regset(self.ecc.register_block().qz_mem(0).as_ptr(), tmp.as_ref(), 8);
             }
         }
 
-        self.ecc.mult_conf().write(|w| unsafe {
+        self.ecc.register_block().mult_conf().write(|w| unsafe {
             w.work_mode()
                 .bits(mode as u8)
                 .key_length()
@@ -645,8 +744,15 @@ impl<Dm: crate::DriverMode> Ecc<'_, Dm> {
         // wait for interrupt
         while self.is_busy() {}
 
-        if !self.ecc.mult_conf().read().verification_result().bit() {
-            self.ecc.mult_conf().reset();
+        if !self
+            .ecc
+            .register_block()
+            .mult_conf()
+            .read()
+            .verification_result()
+            .bit()
+        {
+            self.ecc.register_block().mult_conf().reset();
             return Err(Error::PointNotOnSelectedCurve);
         }
 
@@ -693,16 +799,25 @@ impl<Dm: crate::DriverMode> Ecc<'_, Dm> {
 
         let mut tmp = [0_u8; 32];
         self.reverse_words(k, &mut tmp);
-        self.alignment_helper
-            .volatile_write_regset(self.ecc.k_mem(0).as_ptr(), tmp.as_ref(), 8);
+        self.alignment_helper.volatile_write_regset(
+            self.ecc.register_block().k_mem(0).as_ptr(),
+            tmp.as_ref(),
+            8,
+        );
         self.reverse_words(x, &mut tmp);
-        self.alignment_helper
-            .volatile_write_regset(self.ecc.px_mem(0).as_ptr(), tmp.as_ref(), 8);
+        self.alignment_helper.volatile_write_regset(
+            self.ecc.register_block().px_mem(0).as_ptr(),
+            tmp.as_ref(),
+            8,
+        );
         self.reverse_words(y, &mut tmp);
-        self.alignment_helper
-            .volatile_write_regset(self.ecc.py_mem(0).as_ptr(), tmp.as_ref(), 8);
+        self.alignment_helper.volatile_write_regset(
+            self.ecc.register_block().py_mem(0).as_ptr(),
+            tmp.as_ref(),
+            8,
+        );
 
-        self.ecc.mult_conf().write(|w| unsafe {
+        self.ecc.register_block().mult_conf().write(|w| unsafe {
             w.work_mode()
                 .bits(mode as u8)
                 .key_length()
@@ -714,36 +829,50 @@ impl<Dm: crate::DriverMode> Ecc<'_, Dm> {
         // wait for interrupt
         while self.is_busy() {}
 
-        if !self.ecc.mult_conf().read().verification_result().bit() {
-            self.ecc.mult_conf().reset();
+        if !self
+            .ecc
+            .register_block()
+            .mult_conf()
+            .read()
+            .verification_result()
+            .bit()
+        {
+            self.ecc.register_block().mult_conf().reset();
             return Err(Error::PointNotOnSelectedCurve);
         }
 
-        if !self.ecc.mult_conf().read().verification_result().bit() {
-            self.ecc.mult_conf().reset();
+        if !self
+            .ecc
+            .register_block()
+            .mult_conf()
+            .read()
+            .verification_result()
+            .bit()
+        {
+            self.ecc.register_block().mult_conf().reset();
             return Err(Error::PointNotOnSelectedCurve);
         }
 
         cfg_if::cfg_if! {
             if #[cfg(not(esp32h2))] {
                 self.alignment_helper
-                    .volatile_read_regset(self.ecc.px_mem(0).as_ptr(), &mut tmp, 8);
+                    .volatile_read_regset(self.ecc.register_block().px_mem(0).as_ptr(), &mut tmp, 8);
                 self.reverse_words(tmp.as_ref(), x);
                 self.alignment_helper
-                    .volatile_read_regset(self.ecc.py_mem(0).as_ptr(), &mut tmp, 8);
+                    .volatile_read_regset(self.ecc.register_block().py_mem(0).as_ptr(), &mut tmp, 8);
                 self.reverse_words(tmp.as_ref(), y);
                 self.alignment_helper
-                    .volatile_read_regset(self.ecc.k_mem(0).as_ptr(), &mut tmp, 8);
+                    .volatile_read_regset(self.ecc.register_block().k_mem(0).as_ptr(), &mut tmp, 8);
                 self.reverse_words(tmp.as_ref(), k);
             } else {
                 self.alignment_helper
-                    .volatile_read_regset(self.ecc.qx_mem(0).as_ptr(), &mut tmp, 8);
+                    .volatile_read_regset(self.ecc.register_block().qx_mem(0).as_ptr(), &mut tmp, 8);
                 self.reverse_words(tmp.as_ref(), x);
                 self.alignment_helper
-                    .volatile_read_regset(self.ecc.qy_mem(0).as_ptr(), &mut tmp, 8);
+                    .volatile_read_regset(self.ecc.register_block().qy_mem(0).as_ptr(), &mut tmp, 8);
                 self.reverse_words(tmp.as_ref(), y);
                 self.alignment_helper
-                    .volatile_read_regset(self.ecc.qz_mem(0).as_ptr(), &mut tmp, 8);
+                    .volatile_read_regset(self.ecc.register_block().qz_mem(0).as_ptr(), &mut tmp, 8);
                 self.reverse_words(tmp.as_ref(), k);
             }
         }
@@ -808,22 +937,37 @@ impl<Dm: crate::DriverMode> Ecc<'_, Dm> {
         let mut tmp = [0_u8; 32];
 
         tmp[0..px.len()].copy_from_slice(px);
-        self.alignment_helper
-            .volatile_write_regset(self.ecc.px_mem(0).as_ptr(), &tmp, 8);
+        self.alignment_helper.volatile_write_regset(
+            self.ecc.register_block().px_mem(0).as_ptr(),
+            &tmp,
+            8,
+        );
         tmp[0..py.len()].copy_from_slice(py);
-        self.alignment_helper
-            .volatile_write_regset(self.ecc.py_mem(0).as_ptr(), &tmp, 8);
+        self.alignment_helper.volatile_write_regset(
+            self.ecc.register_block().py_mem(0).as_ptr(),
+            &tmp,
+            8,
+        );
         tmp[0..qx.len()].copy_from_slice(qx);
-        self.alignment_helper
-            .volatile_write_regset(self.ecc.qx_mem(0).as_ptr(), &tmp, 8);
+        self.alignment_helper.volatile_write_regset(
+            self.ecc.register_block().qx_mem(0).as_ptr(),
+            &tmp,
+            8,
+        );
         tmp[0..qy.len()].copy_from_slice(qy);
-        self.alignment_helper
-            .volatile_write_regset(self.ecc.qy_mem(0).as_ptr(), &tmp, 8);
+        self.alignment_helper.volatile_write_regset(
+            self.ecc.register_block().qy_mem(0).as_ptr(),
+            &tmp,
+            8,
+        );
         tmp[0..qz.len()].copy_from_slice(qz);
-        self.alignment_helper
-            .volatile_write_regset(self.ecc.qz_mem(0).as_ptr(), &tmp, 8);
+        self.alignment_helper.volatile_write_regset(
+            self.ecc.register_block().qz_mem(0).as_ptr(),
+            &tmp,
+            8,
+        );
 
-        self.ecc.mult_conf().write(|w| unsafe {
+        self.ecc.register_block().mult_conf().write(|w| unsafe {
             w.work_mode()
                 .bits(mode as u8)
                 .key_length()
@@ -835,24 +979,39 @@ impl<Dm: crate::DriverMode> Ecc<'_, Dm> {
         // wait for interrupt
         while self.is_busy() {}
 
-        self.alignment_helper
-            .volatile_read_regset(self.ecc.px_mem(0).as_ptr(), &mut tmp, 8);
+        self.alignment_helper.volatile_read_regset(
+            self.ecc.register_block().px_mem(0).as_ptr(),
+            &mut tmp,
+            8,
+        );
         let mut tmp_len = px.len();
         px[..].copy_from_slice(&tmp[..tmp_len]);
-        self.alignment_helper
-            .volatile_read_regset(self.ecc.py_mem(0).as_ptr(), &mut tmp, 8);
+        self.alignment_helper.volatile_read_regset(
+            self.ecc.register_block().py_mem(0).as_ptr(),
+            &mut tmp,
+            8,
+        );
         tmp_len = py.len();
         py[..].copy_from_slice(&tmp[..tmp_len]);
-        self.alignment_helper
-            .volatile_read_regset(self.ecc.qx_mem(0).as_ptr(), &mut tmp, 8);
+        self.alignment_helper.volatile_read_regset(
+            self.ecc.register_block().qx_mem(0).as_ptr(),
+            &mut tmp,
+            8,
+        );
         tmp_len = qx.len();
         qx[..].copy_from_slice(&tmp[..tmp_len]);
-        self.alignment_helper
-            .volatile_read_regset(self.ecc.qy_mem(0).as_ptr(), &mut tmp, 8);
+        self.alignment_helper.volatile_read_regset(
+            self.ecc.register_block().qy_mem(0).as_ptr(),
+            &mut tmp,
+            8,
+        );
         tmp_len = qy.len();
         qy[..].copy_from_slice(&tmp[..tmp_len]);
-        self.alignment_helper
-            .volatile_read_regset(self.ecc.qz_mem(0).as_ptr(), &mut tmp, 8);
+        self.alignment_helper.volatile_read_regset(
+            self.ecc.register_block().qz_mem(0).as_ptr(),
+            &mut tmp,
+            8,
+        );
         tmp_len = qz.len();
         qz[..].copy_from_slice(&tmp[..tmp_len]);
 
@@ -900,13 +1059,19 @@ impl<Dm: crate::DriverMode> Ecc<'_, Dm> {
 
         let mut tmp = [0_u8; 32];
         tmp[0..a.len()].copy_from_slice(a);
-        self.alignment_helper
-            .volatile_write_regset(self.ecc.px_mem(0).as_ptr(), &tmp, 8);
+        self.alignment_helper.volatile_write_regset(
+            self.ecc.register_block().px_mem(0).as_ptr(),
+            &tmp,
+            8,
+        );
         tmp[0..b.len()].copy_from_slice(b);
-        self.alignment_helper
-            .volatile_write_regset(self.ecc.py_mem(0).as_ptr(), &tmp, 8);
+        self.alignment_helper.volatile_write_regset(
+            self.ecc.register_block().py_mem(0).as_ptr(),
+            &tmp,
+            8,
+        );
 
-        self.ecc.mult_conf().write(|w| unsafe {
+        self.ecc.register_block().mult_conf().write(|w| unsafe {
             w.work_mode()
                 .bits(work_mode.clone() as u8)
                 .key_length()
@@ -921,7 +1086,7 @@ impl<Dm: crate::DriverMode> Ecc<'_, Dm> {
         match work_mode {
             WorkMode::ModAdd | WorkMode::ModSub => {
                 self.alignment_helper.volatile_read_regset(
-                    self.ecc.px_mem(0).as_ptr(),
+                    self.ecc.register_block().px_mem(0).as_ptr(),
                     &mut tmp,
                     8,
                 );
@@ -930,7 +1095,7 @@ impl<Dm: crate::DriverMode> Ecc<'_, Dm> {
             }
             WorkMode::ModMulti | WorkMode::ModDiv => {
                 self.alignment_helper.volatile_read_regset(
-                    self.ecc.py_mem(0).as_ptr(),
+                    self.ecc.register_block().py_mem(0).as_ptr(),
                     &mut tmp,
                     8,
                 );
@@ -944,7 +1109,12 @@ impl<Dm: crate::DriverMode> Ecc<'_, Dm> {
     }
 
     fn is_busy(&self) -> bool {
-        self.ecc.mult_conf().read().start().bit_is_set()
+        self.ecc
+            .register_block()
+            .mult_conf()
+            .read()
+            .start()
+            .bit_is_set()
     }
 
     fn reverse_words(&self, src: &[u8], dst: &mut [u8]) {

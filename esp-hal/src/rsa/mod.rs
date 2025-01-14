@@ -108,42 +108,61 @@ impl<'d, Dm: crate::DriverMode> Rsa<'d, Dm> {
 
     fn write_operand_b<const N: usize>(&mut self, operand_b: &[u32; N]) {
         unsafe {
-            copy_nonoverlapping(operand_b.as_ptr(), self.rsa.y_mem(0).as_ptr(), N);
+            copy_nonoverlapping(
+                operand_b.as_ptr(),
+                self.rsa.register_block().y_mem(0).as_ptr(),
+                N,
+            );
         }
     }
 
     fn write_modulus<const N: usize>(&mut self, modulus: &[u32; N]) {
         unsafe {
-            copy_nonoverlapping(modulus.as_ptr(), self.rsa.m_mem(0).as_ptr(), N);
+            copy_nonoverlapping(
+                modulus.as_ptr(),
+                self.rsa.register_block().m_mem(0).as_ptr(),
+                N,
+            );
         }
     }
 
     fn write_mprime(&mut self, m_prime: u32) {
-        self.rsa.m_prime().write(|w| unsafe { w.bits(m_prime) });
+        self.rsa
+            .register_block()
+            .m_prime()
+            .write(|w| unsafe { w.bits(m_prime) });
     }
 
     fn write_operand_a<const N: usize>(&mut self, operand_a: &[u32; N]) {
         unsafe {
-            copy_nonoverlapping(operand_a.as_ptr(), self.rsa.x_mem(0).as_ptr(), N);
+            copy_nonoverlapping(
+                operand_a.as_ptr(),
+                self.rsa.register_block().x_mem(0).as_ptr(),
+                N,
+            );
         }
     }
 
     fn write_multi_operand_b<const N: usize>(&mut self, operand_b: &[u32; N]) {
         unsafe {
-            copy_nonoverlapping(operand_b.as_ptr(), self.rsa.z_mem(0).as_ptr().add(N), N);
+            copy_nonoverlapping(
+                operand_b.as_ptr(),
+                self.rsa.register_block().z_mem(0).as_ptr().add(N),
+                N,
+            );
         }
     }
 
     fn write_r<const N: usize>(&mut self, r: &[u32; N]) {
         unsafe {
-            copy_nonoverlapping(r.as_ptr(), self.rsa.z_mem(0).as_ptr(), N);
+            copy_nonoverlapping(r.as_ptr(), self.rsa.register_block().z_mem(0).as_ptr(), N);
         }
     }
 
     fn read_out<const N: usize>(&self, outbuf: &mut [u32; N]) {
         unsafe {
             copy_nonoverlapping(
-                self.rsa.z_mem(0).as_ptr() as *const u32,
+                self.rsa.register_block().z_mem(0).as_ptr() as *const u32,
                 outbuf.as_ptr() as *mut u32,
                 N,
             );
@@ -386,6 +405,7 @@ pub(crate) mod asynch {
 
     use crate::{
         asynch::AtomicWaker,
+        peripherals::RSA,
         rsa::{
             Multi,
             Rsa,
@@ -413,7 +433,11 @@ pub(crate) mod asynch {
             SIGNALED.store(false, Ordering::Relaxed);
 
             #[cfg(not(esp32))]
-            instance.rsa.int_ena().write(|w| w.int_ena().set_bit());
+            instance
+                .rsa
+                .register_block()
+                .int_ena()
+                .write(|w| w.int_ena().set_bit());
 
             Self { instance }
         }
@@ -428,6 +452,7 @@ pub(crate) mod asynch {
             #[cfg(not(esp32))]
             self.instance
                 .rsa
+                .register_block()
                 .int_ena()
                 .write(|w| w.int_ena().clear_bit());
         }
@@ -520,7 +545,7 @@ pub(crate) mod asynch {
     #[handler]
     /// Interrupt handler for RSA.
     pub(super) fn rsa_interrupt_handler() {
-        let rsa = unsafe { &*crate::peripherals::RSA::ptr() };
+        let rsa = RSA::regs();
         SIGNALED.store(true, Ordering::Release);
         cfg_if::cfg_if! {
             if #[cfg(esp32)] {

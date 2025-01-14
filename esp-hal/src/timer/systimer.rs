@@ -169,7 +169,7 @@ impl Unit {
 
     #[cfg(not(esp32s2))]
     fn configure(&self, config: UnitConfig) {
-        let systimer = unsafe { &*SYSTIMER::ptr() };
+        let systimer = SYSTIMER::regs();
         let conf = systimer.conf();
 
         lock(&CONF_LOCK, || {
@@ -210,7 +210,7 @@ impl Unit {
     }
 
     fn set_count(&self, value: u64) {
-        let systimer = unsafe { &*SYSTIMER::ptr() };
+        let systimer = SYSTIMER::regs();
         #[cfg(not(esp32s2))]
         {
             let unitload = systimer.unitload(self.channel() as _);
@@ -240,7 +240,7 @@ impl Unit {
         // This can be a shared reference as long as this type isn't Sync.
 
         let channel = self.channel() as usize;
-        let systimer = unsafe { SYSTIMER::steal() };
+        let systimer = SYSTIMER::regs();
 
         systimer.unit_op(channel).write(|w| w.update().set_bit());
         while !systimer.unit_op(channel).read().value_valid().bit_is_set() {}
@@ -289,7 +289,7 @@ impl Alarm {
     /// Enables/disables the comparator. If enabled, this means
     /// it will generate interrupt based on its configuration.
     fn set_enable(&self, enable: bool) {
-        let systimer = unsafe { &*SYSTIMER::ptr() };
+        let systimer = SYSTIMER::regs();
 
         lock(&CONF_LOCK, || {
             #[cfg(not(esp32s2))]
@@ -312,9 +312,10 @@ impl Alarm {
     /// Returns true if the comparator has been enabled. This means
     /// it will generate interrupt based on its configuration.
     fn is_enabled(&self) -> bool {
+        let systimer = SYSTIMER::regs();
+
         #[cfg(not(esp32s2))]
         {
-            let systimer = unsafe { &*SYSTIMER::ptr() };
             let conf = systimer.conf().read();
             match self.channel() {
                 0 => conf.target0_work_en().bit(),
@@ -326,10 +327,7 @@ impl Alarm {
 
         #[cfg(esp32s2)]
         {
-            let tconf = unsafe {
-                let systimer = &*SYSTIMER::ptr();
-                systimer.target_conf(self.channel() as usize)
-            };
+            let tconf = systimer.target_conf(self.channel() as usize);
             tconf.read().work_en().bit()
         }
     }
@@ -337,19 +335,15 @@ impl Alarm {
     /// Sets the unit this comparator uses as a reference count.
     #[cfg(not(esp32s2))]
     pub fn set_unit(&self, unit: Unit) {
-        let tconf = unsafe {
-            let systimer = &*SYSTIMER::ptr();
-            systimer.target_conf(self.channel() as usize)
-        };
+        let systimer = SYSTIMER::regs();
+        let tconf = systimer.target_conf(self.channel() as usize);
         tconf.modify(|_, w| w.timer_unit_sel().bit(matches!(unit, Unit::Unit1)));
     }
 
     /// Set the mode of the comparator to be either target or periodic.
     fn set_mode(&self, mode: ComparatorMode) {
-        let tconf = unsafe {
-            let systimer = &*SYSTIMER::ptr();
-            systimer.target_conf(self.channel() as usize)
-        };
+        let systimer = SYSTIMER::regs();
+        let tconf = systimer.target_conf(self.channel() as usize);
         let is_period_mode = match mode {
             ComparatorMode::Period => true,
             ComparatorMode::Target => false,
@@ -360,10 +354,8 @@ impl Alarm {
     /// Get the current mode of the comparator, which is either target or
     /// periodic.
     fn mode(&self) -> ComparatorMode {
-        let tconf = unsafe {
-            let systimer = &*SYSTIMER::ptr();
-            systimer.target_conf(self.channel() as usize)
-        };
+        let systimer = SYSTIMER::regs();
+        let tconf = systimer.target_conf(self.channel() as usize);
         if tconf.read().period_mode().bit() {
             ComparatorMode::Period
         } else {
@@ -374,21 +366,19 @@ impl Alarm {
     /// Set how often the comparator should generate an interrupt when in
     /// periodic mode.
     fn set_period(&self, value: u32) {
-        unsafe {
-            let systimer = &*SYSTIMER::ptr();
-            let tconf = systimer.target_conf(self.channel() as usize);
-            tconf.modify(|_, w| w.period().bits(value));
-            #[cfg(not(esp32s2))]
-            {
-                let comp_load = systimer.comp_load(self.channel() as usize);
-                comp_load.write(|w| w.load().set_bit());
-            }
+        let systimer = SYSTIMER::regs();
+        let tconf = systimer.target_conf(self.channel() as usize);
+        unsafe { tconf.modify(|_, w| w.period().bits(value)) };
+        #[cfg(not(esp32s2))]
+        {
+            let comp_load = systimer.comp_load(self.channel() as usize);
+            comp_load.write(|w| w.load().set_bit());
         }
     }
 
     /// Set when the comparator should generate an interrupt in target mode.
     fn set_target(&self, value: u64) {
-        let systimer = unsafe { &*SYSTIMER::ptr() };
+        let systimer = SYSTIMER::regs();
         let target = systimer.trgt(self.channel() as usize);
         target.hi().write(|w| w.hi().set((value >> 32) as u32));
         target
@@ -431,12 +421,7 @@ impl Alarm {
 
             #[crate::ram]
             unsafe extern "C" fn _handle_interrupt<const CH: u8>() {
-                if unsafe { &*SYSTIMER::PTR }
-                    .int_raw()
-                    .read()
-                    .target(CH)
-                    .bit_is_set()
-                {
+                if SYSTIMER::regs().int_raw().read().target(CH).bit_is_set() {
                     let handler = unsafe { HANDLERS[CH as usize] };
                     if let Some(handler) = handler {
                         handler();
@@ -486,7 +471,7 @@ impl super::Timer for Alarm {
     }
 
     fn reset(&self) {
-        let systimer = unsafe { &*SYSTIMER::PTR };
+        let systimer = SYSTIMER::regs();
 
         #[cfg(esp32s2)]
         // Run at XTAL freq, not 80 * XTAL freq:
@@ -571,20 +556,20 @@ impl super::Timer for Alarm {
 
     fn enable_interrupt(&self, state: bool) {
         lock(&INT_ENA_LOCK, || {
-            unsafe { &*SYSTIMER::PTR }
+            SYSTIMER::regs()
                 .int_ena()
                 .modify(|_, w| w.target(self.channel()).bit(state));
         });
     }
 
     fn clear_interrupt(&self) {
-        unsafe { &*SYSTIMER::PTR }
+        SYSTIMER::regs()
             .int_clr()
             .write(|w| w.target(self.channel()).clear_bit_by_one());
     }
 
     fn is_interrupt_set(&self) -> bool {
-        unsafe { &*SYSTIMER::PTR }
+        SYSTIMER::regs()
             .int_raw()
             .read()
             .target(self.channel())
@@ -641,7 +626,7 @@ mod asynch {
     use procmacros::handler;
 
     use super::*;
-    use crate::asynch::AtomicWaker;
+    use crate::{asynch::AtomicWaker, peripherals::SYSTIMER};
 
     const NUM_ALARMS: usize = 3;
 
@@ -660,7 +645,7 @@ mod asynch {
         }
 
         fn event_bit_is_clear(&self) -> bool {
-            unsafe { &*crate::peripherals::SYSTIMER::PTR }
+            SYSTIMER::regs()
                 .int_ena()
                 .read()
                 .target(self.alarm.channel())
@@ -685,7 +670,7 @@ mod asynch {
     #[handler]
     pub(crate) fn target0_handler() {
         lock(&INT_ENA_LOCK, || {
-            unsafe { &*crate::peripherals::SYSTIMER::PTR }
+            SYSTIMER::regs()
                 .int_ena()
                 .modify(|_, w| w.target0().clear_bit());
         });
@@ -696,7 +681,7 @@ mod asynch {
     #[handler]
     pub(crate) fn target1_handler() {
         lock(&INT_ENA_LOCK, || {
-            unsafe { &*crate::peripherals::SYSTIMER::PTR }
+            SYSTIMER::regs()
                 .int_ena()
                 .modify(|_, w| w.target1().clear_bit());
         });
@@ -707,7 +692,7 @@ mod asynch {
     #[handler]
     pub(crate) fn target2_handler() {
         lock(&INT_ENA_LOCK, || {
-            unsafe { &*crate::peripherals::SYSTIMER::PTR }
+            SYSTIMER::regs()
                 .int_ena()
                 .modify(|_, w| w.target2().clear_bit());
         });
@@ -791,7 +776,6 @@ pub mod etm {
     }
 
     pub(super) fn enable_etm() {
-        let syst = unsafe { crate::peripherals::SYSTIMER::steal() };
-        syst.conf().modify(|_, w| w.etm_en().set_bit());
+        SYSTIMER::regs().conf().modify(|_, w| w.etm_en().set_bit());
     }
 }

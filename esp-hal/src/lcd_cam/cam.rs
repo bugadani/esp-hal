@@ -155,6 +155,7 @@ impl<'d> Camera<'d> {
         };
 
         this.lcd_cam
+            .register_block()
             .cam_ctrl1()
             .modify(|_, w| w.cam_2byte_en().bit(P::BUS_WIDTH == 2));
 
@@ -176,7 +177,7 @@ impl<'d> Camera<'d> {
         )
         .map_err(ConfigError::Clock)?;
 
-        self.lcd_cam.cam_ctrl().write(|w| {
+        self.lcd_cam.register_block().cam_ctrl().write(|w| {
             // Force enable the clock for all configuration registers.
             unsafe {
                 w.cam_clk_sel().bits((i + 1) as _);
@@ -195,23 +196,28 @@ impl<'d> Camera<'d> {
                 w.cam_stop_en().clear_bit()
             }
         });
-        self.lcd_cam.cam_ctrl1().modify(|_, w| unsafe {
-            w.cam_vh_de_mode_en().set_bit();
-            w.cam_rec_data_bytelen().bits(0);
-            w.cam_line_int_num().bits(0);
-            w.cam_vsync_filter_en()
-                .bit(config.vsync_filter_threshold.is_some());
-            w.cam_clk_inv().clear_bit();
-            w.cam_de_inv().clear_bit();
-            w.cam_hsync_inv().clear_bit();
-            w.cam_vsync_inv().clear_bit()
-        });
+        self.lcd_cam
+            .register_block()
+            .cam_ctrl1()
+            .modify(|_, w| unsafe {
+                w.cam_vh_de_mode_en().set_bit();
+                w.cam_rec_data_bytelen().bits(0);
+                w.cam_line_int_num().bits(0);
+                w.cam_vsync_filter_en()
+                    .bit(config.vsync_filter_threshold.is_some());
+                w.cam_clk_inv().clear_bit();
+                w.cam_de_inv().clear_bit();
+                w.cam_hsync_inv().clear_bit();
+                w.cam_vsync_inv().clear_bit()
+            });
 
         self.lcd_cam
+            .register_block()
             .cam_rgb_yuv()
             .write(|w| w.cam_conv_bypass().clear_bit());
 
         self.lcd_cam
+            .register_block()
             .cam_ctrl()
             .modify(|_, w| w.cam_update().set_bit());
 
@@ -261,6 +267,7 @@ impl<'d> Camera<'d> {
         InputSignal::CAM_H_ENABLE.connect_to(h_enable);
 
         self.lcd_cam
+            .register_block()
             .cam_ctrl1()
             .modify(|_, w| w.cam_vh_de_mode_en().clear_bit());
 
@@ -289,6 +296,7 @@ impl<'d> Camera<'d> {
         InputSignal::CAM_H_ENABLE.connect_to(h_enable);
 
         self.lcd_cam
+            .register_block()
             .cam_ctrl1()
             .modify(|_, w| w.cam_vh_de_mode_en().set_bit());
 
@@ -302,15 +310,19 @@ impl<'d> Camera<'d> {
     ) -> Result<CameraTransfer<'d, BUF>, (DmaError, Self, BUF)> {
         // Reset Camera control unit and Async Rx FIFO
         self.lcd_cam
+            .register_block()
             .cam_ctrl1()
             .modify(|_, w| w.cam_reset().set_bit());
         self.lcd_cam
+            .register_block()
             .cam_ctrl1()
             .modify(|_, w| w.cam_reset().clear_bit());
         self.lcd_cam
+            .register_block()
             .cam_ctrl1()
             .modify(|_, w| w.cam_afifo_reset().set_bit());
         self.lcd_cam
+            .register_block()
             .cam_ctrl1()
             .modify(|_, w| w.cam_afifo_reset().clear_bit());
 
@@ -326,13 +338,14 @@ impl<'d> Camera<'d> {
         }
 
         // Start the Camera unit to listen for incoming DVP stream.
-        self.lcd_cam.cam_ctrl().modify(|_, w| {
+        self.lcd_cam.register_block().cam_ctrl().modify(|_, w| {
             // Automatically stops the camera unit once the GDMA Rx FIFO is full.
             w.cam_stop_en().set_bit();
 
             w.cam_update().set_bit()
         });
         self.lcd_cam
+            .register_block()
             .cam_ctrl1()
             .modify(|_, w| w.cam_start().set_bit());
 
@@ -371,6 +384,7 @@ impl<'d, BUF: DmaRxBuffer> CameraTransfer<'d, BUF> {
 
         self.camera
             .lcd_cam
+            .register_block()
             .cam_ctrl1()
             .read()
             .cam_start()
@@ -424,6 +438,7 @@ impl<'d, BUF: DmaRxBuffer> CameraTransfer<'d, BUF> {
         // Stop the LCD_CAM peripheral.
         self.camera
             .lcd_cam
+            .register_block()
             .cam_ctrl1()
             .modify(|_, w| w.cam_start().clear_bit());
 

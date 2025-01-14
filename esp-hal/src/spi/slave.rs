@@ -80,8 +80,8 @@ use crate::{
         NoPin,
         OutputSignal,
     },
+    pac::spi2::RegisterBlock,
     peripheral::{Peripheral, PeripheralRef},
-    peripherals::spi2::RegisterBlock,
     spi::AnySpi,
     system::PeripheralGuard,
     Blocking,
@@ -791,7 +791,7 @@ macro_rules! spi_instance {
                 #[inline(always)]
                 fn info(&self) -> &'static Info {
                     static INFO: Info = Info {
-                        register_block: crate::peripherals::[<SPI $num>]::PTR,
+                        register_block: crate::peripherals::[<SPI $num>]::regs(),
                         peripheral: crate::system::Peripheral::[<Spi $num>],
                         sclk: InputSignal::$sclk,
                         mosi: InputSignal::$mosi,

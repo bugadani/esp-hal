@@ -15,7 +15,14 @@ impl<Dm: crate::DriverMode> Rsa<'_, Dm> {
     /// needs to be initialized, only after that peripheral should be used.
     /// This function would return without an error if the memory is initialized
     pub fn ready(&mut self) -> nb::Result<(), Infallible> {
-        if self.rsa.query_clean().read().query_clean().bit_is_clear() {
+        if self
+            .rsa
+            .register_block()
+            .query_clean()
+            .read()
+            .query_clean()
+            .bit_is_clear()
+        {
             return Err(nb::Error::WouldBlock);
         }
         Ok(())
@@ -26,11 +33,17 @@ impl<Dm: crate::DriverMode> Rsa<'_, Dm> {
     /// When enabled rsa peripheral would generate an interrupt when a operation
     /// is finished.
     pub fn enable_disable_interrupt(&mut self, enable: bool) {
-        self.rsa.int_ena().write(|w| w.int_ena().bit(enable));
+        self.rsa
+            .register_block()
+            .int_ena()
+            .write(|w| w.int_ena().bit(enable));
     }
 
     fn write_mode(&mut self, mode: u32) {
-        self.rsa.mode().write(|w| unsafe { w.bits(mode) });
+        self.rsa
+            .register_block()
+            .mode()
+            .write(|w| unsafe { w.bits(mode) });
     }
 
     /// Enables/disables search acceleration.
@@ -43,26 +56,26 @@ impl<Dm: crate::DriverMode> Rsa<'_, Dm> {
     ///
     /// For more information refer to 18.3.4 of <https://www.espressif.com/sites/default/files/documentation/esp32-c6_technical_reference_manual_en.pdf>
     pub fn enable_disable_search_acceleration(&mut self, enable: bool) {
-        match enable {
-            true => self
-                .rsa
-                .search_enable()
-                .write(|w| w.search_enable().set_bit()),
-            false => self
-                .rsa
-                .search_enable()
-                .write(|w| w.search_enable().clear_bit()),
-        };
+        self.rsa
+            .register_block()
+            .search_enable()
+            .write(|w| w.search_enable().bit(enable));
     }
 
     /// Checks if the search functionality is enabled in the RSA hardware.
     pub(super) fn is_search_enabled(&mut self) -> bool {
-        self.rsa.search_enable().read().search_enable().bit_is_set()
+        self.rsa
+            .register_block()
+            .search_enable()
+            .read()
+            .search_enable()
+            .bit_is_set()
     }
 
     /// Sets the search position in the RSA hardware.
     pub(super) fn write_search_position(&mut self, search_position: u32) {
         self.rsa
+            .register_block()
             .search_pos()
             .write(|w| unsafe { w.bits(search_position) });
     }
@@ -78,21 +91,16 @@ impl<Dm: crate::DriverMode> Rsa<'_, Dm> {
     ///
     /// For more information refer to 18.3.4 of <https://www.espressif.com/sites/default/files/documentation/esp32-c6_technical_reference_manual_en.pdf>.
     pub fn enable_disable_constant_time_acceleration(&mut self, enable: bool) {
-        match enable {
-            true => self
-                .rsa
-                .constant_time()
-                .write(|w| w.constant_time().clear_bit()),
-            false => self
-                .rsa
-                .constant_time()
-                .write(|w| w.constant_time().set_bit()),
-        };
+        self.rsa
+            .register_block()
+            .constant_time()
+            .write(|w| w.constant_time().bit(enable));
     }
 
     /// Starts the modular exponentiation operation.
     pub(super) fn write_modexp_start(&self) {
         self.rsa
+            .register_block()
             .set_start_modexp()
             .write(|w| w.set_start_modexp().set_bit());
     }
@@ -100,6 +108,7 @@ impl<Dm: crate::DriverMode> Rsa<'_, Dm> {
     /// Starts the multiplication operation.
     pub(super) fn write_multi_start(&self) {
         self.rsa
+            .register_block()
             .set_start_mult()
             .write(|w| w.set_start_mult().set_bit());
     }
@@ -107,18 +116,27 @@ impl<Dm: crate::DriverMode> Rsa<'_, Dm> {
     /// Starts the modular multiplication operation.
     pub(super) fn write_modmulti_start(&self) {
         self.rsa
+            .register_block()
             .set_start_modmult()
             .write(|w| w.set_start_modmult().set_bit());
     }
 
     /// Clears the RSA interrupt flag.
     pub(super) fn clear_interrupt(&mut self) {
-        self.rsa.int_clr().write(|w| w.int_clr().set_bit());
+        self.rsa
+            .register_block()
+            .int_clr()
+            .write(|w| w.int_clr().set_bit());
     }
 
     /// Checks if the RSA peripheral is idle.
     pub(super) fn is_idle(&self) -> bool {
-        self.rsa.query_idle().read().query_idle().bit_is_set()
+        self.rsa
+            .register_block()
+            .query_idle()
+            .read()
+            .query_idle()
+            .bit_is_set()
     }
 }
 
