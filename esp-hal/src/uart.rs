@@ -237,6 +237,7 @@ use crate::{
         interconnect::{PeripheralInput, PeripheralOutput},
         InputSignal,
         OutputSignal,
+        PinGuard,
         Pull,
     },
     interrupt::{InterruptConfigurable, InterruptHandler},
@@ -508,6 +509,7 @@ where
                 uart: self.uart,
                 phantom: PhantomData,
                 guard: tx_guard,
+                tx_pin: PinGuard::new(crate::gpio::AnyPin(u8::MAX), OutputSignal::U1TXD),
             },
         };
         serial.init(config)?;
@@ -527,6 +529,7 @@ pub struct UartTx<'d, Dm> {
     uart: PeripheralRef<'d, AnyUart>,
     phantom: PhantomData<Dm>,
     guard: PeripheralGuard,
+    tx_pin: PinGuard,
 }
 
 /// UART (Receive)
@@ -619,12 +622,18 @@ where
     ///
     /// Sets the specified pin to push-pull output and connects it to the UART
     /// TX signal.
-    pub fn with_tx(self, tx: impl Peripheral<P = impl PeripheralOutput> + 'd) -> Self {
+    pub fn with_tx(mut self, tx: impl Peripheral<P = impl PeripheralOutput> + 'd) -> Self {
         crate::into_mapped_ref!(tx);
         // Make sure we don't cause an unexpected low pulse on the pin.
         tx.set_output_high(true);
         tx.set_to_push_pull_output();
-        self.uart.info().tx_signal.connect_to(tx);
+        // self.uart.info().tx_signal.connect_to(tx);
+
+        // TODO
+        // pub fn map<U>(self, transform: impl FnOnce(T) -> U) -> PeripheralRef<'a, U> {
+        //
+
+        self.tx_pin = PinGuard::new(self.uart.info().tx_signal.number(), self.uart.info().tx_signal);
 
         self
     }
@@ -734,6 +743,7 @@ impl<'d> UartTx<'d, Blocking> {
             uart: self.uart,
             phantom: PhantomData,
             guard: self.guard,
+            tx_pin: PinGuard::new(crate::gpio::AnyPin(u8::MAX), OutputSignal::U1TXD),
         }
     }
 }
@@ -753,6 +763,7 @@ impl<'d> UartTx<'d, Async> {
             uart: self.uart,
             phantom: PhantomData,
             guard: self.guard,
+            tx_pin: PinGuard::new(crate::gpio::AnyPin(u8::MAX), OutputSignal::U1TXD),
         }
     }
 }
@@ -1064,6 +1075,7 @@ impl<'d> Uart<'d, Blocking> {
         tx.set_output_high(true);
         tx.set_to_push_pull_output();
         self.tx.uart.info().tx_signal.connect_to(tx);
+        tx.number().map(|n| self.tx.tx_pin = PinGuard::new(n, OutputSignal::U1TXD));
 
         self
     }
