@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - SPI: Added support for 3-wire SPI (#2919)
 - UART: Add separate config for Rx and Tx (#2965)
 - Added accessor methods to config structs (#3011)
+- `ESP_HAL_CONFIG_XTAL_FREQUENCY` configuration. For now, chips other than ESP32 and ESP32-C2 have a single option only. (#3054)
 
 ### Changed
 
