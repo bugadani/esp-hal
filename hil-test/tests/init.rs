@@ -24,11 +24,12 @@ mod tests {
 
     #[test]
     fn test_feeding_timg0_wdt() {
-        let peripherals = esp_hal::init(Config::default().with_watchdog(
-            WatchdogConfig::default().with_timg0(WatchdogStatus::Enabled(
-                fugit::MicrosDurationU64::millis(500),
-            )),
-        ));
+        let peripherals = esp_hal::init(
+            Config::default().with_watchdog(
+                WatchdogConfig::default()
+                    .with_timg0(WatchdogStatus::Enabled(fugit::Duration::millis(500))),
+            ),
+        );
 
         let timg0 = TimerGroup::new(peripherals.TIMG0);
         let mut wdt0 = timg0.wdt;
@@ -43,11 +44,12 @@ mod tests {
     #[test]
     #[cfg(timg1)]
     fn test_feeding_timg1_wdt() {
-        let peripherals = esp_hal::init(Config::default().with_watchdog(
-            WatchdogConfig::default().with_timg1(WatchdogStatus::Enabled(
-                fugit::MicrosDurationU64::millis(500),
-            )),
-        ));
+        let peripherals = esp_hal::init(
+            Config::default().with_watchdog(
+                WatchdogConfig::default()
+                    .with_timg1(WatchdogStatus::Enabled(fugit::Duration::millis(500))),
+            ),
+        );
 
         let timg1 = TimerGroup::new(peripherals.TIMG1);
         let mut wdt1 = timg1.wdt;
@@ -65,9 +67,8 @@ mod tests {
             Config::default()
                 .with_cpu_clock(CpuClock::max())
                 .with_watchdog(
-                    WatchdogConfig::default().with_timg0(WatchdogStatus::Enabled(
-                        fugit::MicrosDurationU64::millis(500),
-                    )),
+                    WatchdogConfig::default()
+                        .with_timg0(WatchdogStatus::Enabled(fugit::Duration::millis(500))),
                 ),
         );
 
@@ -84,11 +85,12 @@ mod tests {
     #[test]
     #[timeout(4)]
     fn test_feeding_rtc_wdt() {
-        let peripherals = esp_hal::init(Config::default().with_watchdog(
-            WatchdogConfig::default().with_rwdt(WatchdogStatus::Enabled(
-                fugit::MicrosDurationU64::millis(3000),
-            )),
-        ));
+        let peripherals = esp_hal::init(
+            Config::default().with_watchdog(
+                WatchdogConfig::default()
+                    .with_rwdt(WatchdogStatus::Enabled(fugit::Duration::millis(3000))),
+            ),
+        );
 
         let mut rtc = Rtc::new(peripherals.LPWR);
         let delay = Delay::new();

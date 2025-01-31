@@ -68,8 +68,6 @@
 //! ```
 use core::marker::PhantomData;
 
-use fugit::{HertzU32, Instant, MicrosDurationU64};
-
 use super::Error;
 #[cfg(any(esp32c6, esp32h2))]
 use crate::soc::constants::TIMG_DEFAULT_CLK_SRC;
@@ -82,6 +80,7 @@ use crate::{
     private::Sealed,
     sync::{lock, RawMutex},
     system::PeripheralClockControl,
+    time::{Duration, Instant, Rate},
 };
 
 const NUM_TIMG: usize = 1 + cfg!(timg1) as usize;
@@ -288,11 +287,11 @@ impl super::Timer for Timer {
         self.is_counter_active()
     }
 
-    fn now(&self) -> Instant<u64, 1, 1_000_000> {
+    fn now(&self) -> Instant {
         self.now()
     }
 
-    fn load_value(&self, value: MicrosDurationU64) -> Result<(), Error> {
+    fn load_value(&self, value: Duration) -> Result<(), Error> {
         self.load_value(value)
     }
 
@@ -449,7 +448,7 @@ impl Timer {
         self.t().config().modify(|_, w| w.alarm_en().bit(state));
     }
 
-    fn load_value(&self, value: MicrosDurationU64) -> Result<(), Error> {
+    fn load_value(&self, value: Duration) -> Result<(), Error> {
         cfg_if::cfg_if! {
             if #[cfg(esp32h2)] {
                 // ESP32-H2 is using PLL_48M_CLK source instead of APB_CLK
@@ -485,7 +484,7 @@ impl Timer {
         self.set_alarm_active(periodic);
     }
 
-    fn now(&self) -> Instant<u64, 1, 1_000_000> {
+    fn now(&self) -> Instant {
         let t = self.t();
 
         t.update().write(|w| w.update().set_bit());
@@ -507,7 +506,7 @@ impl Timer {
         }
         let micros = ticks_to_timeout(ticks, clk_src, self.divider());
 
-        Instant::<u64, 1, 1_000_000>::from_ticks(micros)
+        Instant::from_ticks(micros)
     }
 
     fn divider(&self) -> u32 {
@@ -535,30 +534,20 @@ impl Timer {
     }
 }
 
-fn ticks_to_timeout<F>(ticks: u64, clock: F, divider: u32) -> u64
-where
-    F: Into<HertzU32>,
-{
-    let clock: HertzU32 = clock.into();
-
+fn ticks_to_timeout(ticks: u64, clock: Rate, divider: u32) -> u64 {
     // 1_000_000 is used to get rid of `float` calculations
-    let period: u64 = 1_000_000 * 1_000_000 / (clock.to_Hz() as u64 / divider as u64);
+    let period: u64 = 1_000_000 * 1_000_000 / (clock.as_hz() as u64 / divider as u64);
 
     ticks * period / 1_000_000
 }
 
-fn timeout_to_ticks<T, F>(timeout: T, clock: F, divider: u32) -> u64
-where
-    T: Into<MicrosDurationU64>,
-    F: Into<HertzU32>,
-{
-    let timeout: MicrosDurationU64 = timeout.into();
-    let micros = timeout.to_micros();
+fn timeout_to_ticks(timeout: Duration, clock: Rate, divider: u32) -> u64 {
+    let micros = timeout.as_micros();
 
-    let clock: HertzU32 = clock.into();
+    let clock: Rate = clock.into();
 
     // 1_000_000 is used to get rid of `float` calculations
-    let period: u64 = 1_000_000 * 1_000_000 / (clock.to_Hz() as u64 / divider as u64);
+    let period: u64 = 1_000_000 * 1_000_000 / (clock.as_hz() as u64 / divider as u64);
 
     (1_000_000 * micros / period as u64) as u64
 }
@@ -696,8 +685,8 @@ where
     }
 
     /// Set the timeout, in microseconds, of the watchdog timer
-    pub fn set_timeout(&mut self, stage: MwdtStage, timeout: MicrosDurationU64) {
-        let timeout_raw = (timeout.to_nanos() * 10 / 125) as u32;
+    pub fn set_timeout(&mut self, stage: MwdtStage, timeout: Duration) {
+        let timeout_raw = (timeout.as_micros() * 10_000 / 125) as u32;
 
         let reg_block = unsafe { &*TG::register_block() };
 

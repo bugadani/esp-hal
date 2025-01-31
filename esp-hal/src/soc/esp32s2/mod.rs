@@ -55,7 +55,7 @@ pub(crate) mod constants {
     /// End address of the system's DRAM (high range).
     pub const SOC_DRAM_HIGH: usize = 0x4000_0000;
     /// Reference clock tick frequency, set to 1 MHz.
-    pub const REF_TICK: fugit::HertzU32 = fugit::HertzU32::MHz(1);
+    pub const REF_TICK: Rate = Rate::from_mhz(1);
 }
 
 /// Function initializes ESP32 specific memories (RTC slow and fast) and

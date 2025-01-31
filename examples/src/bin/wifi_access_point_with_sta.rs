@@ -70,7 +70,7 @@ fn main() -> ! {
         mut controller,
     } = create_ap_sta_network_interface(&init, wifi).unwrap();
 
-    let now = || time::now().duration_since_epoch().to_millis();
+    let now = || time::now().duration_since_epoch().as_millis();
     let mut ap_socket_set_entries: [SocketStorage; 3] = Default::default();
     let ap_socket_set = SocketSet::new(&mut ap_socket_set_entries[..]);
     let mut ap_stack = Stack::new(ap_interface, ap_device, ap_socket_set, now, rng.random());

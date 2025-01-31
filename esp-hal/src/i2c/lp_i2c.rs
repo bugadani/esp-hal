@@ -1,7 +1,5 @@
 //! Low-power I2C driver
 
-use fugit::HertzU32;
-
 use crate::{
     gpio::lp_io::LowPowerOutputOpenDrain,
     peripherals::{LPWR, LP_AON, LP_I2C0, LP_IO, LP_PERI},
@@ -89,7 +87,7 @@ impl LpI2c {
         i2c: LP_I2C0,
         _sda: LowPowerOutputOpenDrain<'_, 6>,
         _scl: LowPowerOutputOpenDrain<'_, 7>,
-        frequency: HertzU32,
+        frequency: Rate,
     ) -> Self {
         let me = Self { i2c };
 

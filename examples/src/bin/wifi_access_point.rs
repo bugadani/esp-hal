@@ -73,7 +73,7 @@ fn main() -> ! {
     let mut wifi = peripherals.WIFI;
     let (iface, device, mut controller) =
         create_network_interface(&init, &mut wifi, WifiApDevice).unwrap();
-    let now = || time::now().duration_since_epoch().to_millis();
+    let now = || time::now().duration_since_epoch().as_millis();
 
     let mut socket_set_entries: [SocketStorage; 3] = Default::default();
     let socket_set = SocketSet::new(&mut socket_set_entries[..]);

@@ -1,4 +1,3 @@
-use fugit::HertzU32;
 use strum::FromRepr;
 
 use crate::{
@@ -202,10 +201,10 @@ pub(crate) enum RtcFastClock {
 }
 
 impl Clock for RtcFastClock {
-    fn frequency(&self) -> HertzU32 {
+    fn frequency(&self) -> Rate {
         match self {
-            RtcFastClock::RtcFastClockXtalD2 => HertzU32::Hz(16_000_000),
-            RtcFastClock::RtcFastClockRcFast => HertzU32::Hz(8_000_000),
+            RtcFastClock::RtcFastClockXtalD2 => Rate::Hz(16_000_000),
+            RtcFastClock::RtcFastClockRcFast => Rate::Hz(8_000_000),
         }
     }
 }
@@ -226,12 +225,12 @@ pub enum RtcSlowClock {
 }
 
 impl Clock for RtcSlowClock {
-    fn frequency(&self) -> HertzU32 {
+    fn frequency(&self) -> Rate {
         match self {
-            RtcSlowClock::RtcSlowClockRcSlow => HertzU32::Hz(150_000),
-            RtcSlowClock::RtcSlowClock32kXtal => HertzU32::Hz(32_768),
-            RtcSlowClock::RtcSlowClock32kRc => HertzU32::Hz(32_768),
-            RtcSlowClock::RtcSlowOscSlow => HertzU32::Hz(32_768),
+            RtcSlowClock::RtcSlowClockRcSlow => Rate::Hz(150_000),
+            RtcSlowClock::RtcSlowClock32kXtal => Rate::Hz(32_768),
+            RtcSlowClock::RtcSlowClock32kRc => Rate::Hz(32_768),
+            RtcSlowClock::RtcSlowOscSlow => Rate::Hz(32_768),
         }
     }
 }
@@ -516,7 +515,7 @@ impl RtcClock {
             }
         };
 
-        let us_time_estimate = (HertzU32::MHz(slowclk_cycles) / expected_freq).to_Hz();
+        let us_time_estimate = (Rate::from_mhz(slowclk_cycles) / expected_freq).as_hz();
 
         // Start calibration
         timg0
@@ -621,7 +620,7 @@ impl RtcClock {
         while timg0.rtccalicfg().read().rtc_cali_rdy().bit_is_clear() {}
 
         (timg0.rtccalicfg1().read().rtc_cali_value().bits()
-            * (RtcSlowClock::RtcSlowClockRcSlow.frequency().to_Hz() / 100))
+            * (RtcSlowClock::RtcSlowClockRcSlow.frequency().as_hz() / 100))
             / 1_000_000
     }
 }

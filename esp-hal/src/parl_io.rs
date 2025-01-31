@@ -39,7 +39,7 @@
 //!     peripherals.PARL_IO,
 //!     dma_channel,
 //!     rx_descriptors,
-//!     1.MHz(),
+//!     Rate::from_mhz(1),
 //! )?;
 //!
 //! let mut parl_io_rx = parl_io
@@ -93,7 +93,7 @@
 //!     peripherals.PARL_IO,
 //!     dma_channel,
 //!     tx_descriptors,
-//!     1.MHz(),
+//!     Rate::from_mhz(1),
 //! )?;
 //!
 //! let mut clock_pin = ClkOutPin::new(peripherals.GPIO6);
@@ -122,7 +122,6 @@
 //! ```
 
 use enumset::{EnumSet, EnumSetType};
-use fugit::HertzU32;
 use peripheral::PeripheralRef;
 use private::*;
 
@@ -1107,7 +1106,7 @@ impl<'d> ParlIoFullDuplex<'d, Blocking> {
         dma_channel: impl Peripheral<P = CH> + 'd,
         tx_descriptors: &'static mut [DmaDescriptor],
         rx_descriptors: &'static mut [DmaDescriptor],
-        frequency: HertzU32,
+        frequency: Rate,
     ) -> Result<Self, Error>
     where
         CH: DmaChannelFor<PARL_IO>,
@@ -1231,7 +1230,7 @@ impl<'d> ParlIoTxOnly<'d, Blocking> {
         _parl_io: impl Peripheral<P = PARL_IO> + 'd,
         dma_channel: impl Peripheral<P = CH> + 'd,
         descriptors: &'static mut [DmaDescriptor],
-        frequency: HertzU32,
+        frequency: Rate,
     ) -> Result<Self, Error>
     where
         CH: TxChannelFor<PARL_IO>,
@@ -1339,7 +1338,7 @@ impl<'d> ParlIoRxOnly<'d, Blocking> {
         _parl_io: impl Peripheral<P = PARL_IO> + 'd,
         dma_channel: impl Peripheral<P = CH> + 'd,
         descriptors: &'static mut [DmaDescriptor],
-        frequency: HertzU32,
+        frequency: Rate,
     ) -> Result<Self, Error>
     where
         CH: RxChannelFor<PARL_IO>,
@@ -1432,7 +1431,7 @@ impl crate::interrupt::InterruptConfigurable for ParlIoRxOnly<'_, Blocking> {
     }
 }
 
-fn internal_init(frequency: HertzU32) -> Result<(), Error> {
+fn internal_init(frequency: Rate) -> Result<(), Error> {
     if frequency.raw() > 40_000_000 {
         return Err(Error::UnreachableClockRate);
     }

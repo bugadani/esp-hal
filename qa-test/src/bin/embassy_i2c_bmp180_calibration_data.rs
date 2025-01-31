@@ -34,7 +34,7 @@ async fn main(_spawner: Spawner) {
 
     let mut i2c = I2c::new(
         peripherals.I2C0,
-        Config::default().with_frequency(400.kHz()),
+        Config::default().with_frequency(Rate::from_khz(400)),
     )
     .unwrap()
     .with_sda(peripherals.GPIO4)

@@ -55,7 +55,7 @@ mod tests {
             ctx.lcd_cam.lcd,
             ctx.dma,
             pins,
-            Config::default().with_frequency(20.MHz()),
+            Config::default().with_frequency(Rate::from_mhz(20)),
         )
         .unwrap();
 

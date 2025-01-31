@@ -29,9 +29,9 @@ mod tests {
 
         cfg_if::cfg_if! {
             if #[cfg(feature = "esp32h2")] {
-                let freq = 32.MHz();
+                let freq = Rate::from_mhz(32);
             } else {
-                let freq = 80.MHz();
+                let freq = Rate::from_mhz(80);
             }
         };
 
@@ -98,9 +98,9 @@ mod tests {
 
         cfg_if::cfg_if! {
             if #[cfg(feature = "esp32h2")] {
-                let freq = 32.MHz();
+                let freq = Rate::from_mhz(32);
             } else {
-                let freq = 80.MHz();
+                let freq = Rate::from_mhz(80);
             }
         };
 

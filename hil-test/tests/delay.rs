@@ -49,9 +49,9 @@ mod tests {
 
         assert!(t2 > t1);
         assert!(
-            (t2 - t1).to_millis() >= 700u64,
+            (t2 - t1).as_millis() >= 700u64,
             "diff: {:?}",
-            (t2 - t1).to_millis()
+            (t2 - t1).as_millis()
         );
     }
 
@@ -63,9 +63,9 @@ mod tests {
 
         assert!(t2 > t1);
         assert!(
-            (t2 - t1).to_micros() >= 1_500_000u64,
+            (t2 - t1).as_micros() >= 1_500_000u64,
             "diff: {:?}",
-            (t2 - t1).to_micros()
+            (t2 - t1).as_micros()
         );
     }
 
@@ -78,9 +78,9 @@ mod tests {
 
         assert!(t2 > t1);
         assert!(
-            (t2 - t1).to_millis() >= 3000u64,
+            (t2 - t1).as_millis() >= 3000u64,
             "diff: {:?}",
-            (t2 - t1).to_millis()
+            (t2 - t1).as_millis()
         );
     }
 }

@@ -132,6 +132,7 @@ use crate::{
     pac::twai0::RegisterBlock,
     peripheral::{Peripheral, PeripheralRef},
     system::PeripheralGuard,
+    time::Rate,
     twai::filter::SingleStandardFilter,
     Async,
     Blocking,
@@ -765,7 +766,7 @@ where
         #[cfg(not(any(esp32h2, esp32c6)))]
         {
             let apb_clock = crate::clock::Clocks::get().apb_clock;
-            assert!(apb_clock == fugit::HertzU32::MHz(80));
+            assert!(apb_clock == Rate::from_mhz(80));
         }
 
         // Unpack the baud rate timings and convert them to the values needed for the

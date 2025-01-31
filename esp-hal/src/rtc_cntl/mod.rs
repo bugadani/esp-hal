@@ -110,17 +110,12 @@
 //! ```
 
 use chrono::{DateTime, NaiveDateTime};
-#[cfg(not(any(esp32c6, esp32h2)))]
-use fugit::HertzU32;
-use fugit::MicrosDurationU64;
 
 pub use self::rtc::SocResetReason;
 #[cfg(not(any(esp32c6, esp32h2)))]
 use crate::clock::XtalClock;
 #[cfg(not(esp32))]
 use crate::efuse::Efuse;
-#[cfg(not(any(esp32c6, esp32h2)))]
-use crate::peripherals::{LPWR, TIMG0};
 #[cfg(any(esp32, esp32s3, esp32c3, esp32c6, esp32c2))]
 use crate::rtc_cntl::sleep::{RtcSleepConfig, WakeSource, WakeTriggers};
 use crate::{
@@ -129,7 +124,13 @@ use crate::{
     peripheral::{Peripheral, PeripheralRef},
     peripherals::Interrupt,
     reset::{SleepSource, WakeupReason},
+    time::Duration,
     Cpu,
+};
+#[cfg(not(any(esp32c6, esp32h2)))]
+use crate::{
+    peripherals::{LPWR, TIMG0},
+    time::Rate,
 };
 // only include sleep where it's been implemented
 #[cfg(any(esp32, esp32s3, esp32c3, esp32c6, esp32c2))]
@@ -171,13 +172,13 @@ pub(crate) enum RtcFastClock {
 
 #[cfg(not(any(esp32c6, esp32h2)))]
 impl Clock for RtcFastClock {
-    fn frequency(&self) -> HertzU32 {
+    fn frequency(&self) -> Rate {
         match self {
-            RtcFastClock::RtcFastClockXtalD4 => HertzU32::Hz(40_000_000 / 4),
+            RtcFastClock::RtcFastClockXtalD4 => Rate::from_hz(40_000_000 / 4),
             #[cfg(any(esp32, esp32s2))]
-            RtcFastClock::RtcFastClock8m => HertzU32::Hz(8_500_000),
+            RtcFastClock::RtcFastClock8m => Rate::from_hz(8_500_000),
             #[cfg(any(esp32c2, esp32c3, esp32c6, esp32h2, esp32s3))]
-            RtcFastClock::RtcFastClock8m => HertzU32::Hz(17_500_000),
+            RtcFastClock::RtcFastClock8m => Rate::from_hz(17_500_000),
         }
     }
 }
@@ -199,19 +200,19 @@ pub enum RtcSlowClock {
 
 #[cfg(not(any(esp32c6, esp32h2)))]
 impl Clock for RtcSlowClock {
-    fn frequency(&self) -> HertzU32 {
+    fn frequency(&self) -> Rate {
         match self {
             #[cfg(esp32)]
-            RtcSlowClock::RtcSlowClockRtc => HertzU32::Hz(150_000),
+            RtcSlowClock::RtcSlowClockRtc => Rate::from_hz(150_000),
             #[cfg(esp32s2)]
-            RtcSlowClock::RtcSlowClockRtc => HertzU32::Hz(90_000),
+            RtcSlowClock::RtcSlowClockRtc => Rate::from_hz(90_000),
             #[cfg(any(esp32c2, esp32c3, esp32s3))]
-            RtcSlowClock::RtcSlowClockRtc => HertzU32::Hz(136_000),
-            RtcSlowClock::RtcSlowClock32kXtal => HertzU32::Hz(32_768),
+            RtcSlowClock::RtcSlowClockRtc => Rate::from_hz(136_000),
+            RtcSlowClock::RtcSlowClock32kXtal => Rate::from_hz(32_768),
             #[cfg(any(esp32, esp32s2))]
-            RtcSlowClock::RtcSlowClock8mD256 => HertzU32::Hz(8_500_000 / 256),
+            RtcSlowClock::RtcSlowClock8mD256 => Rate::from_hz(8_500_000 / 256),
             #[cfg(any(esp32c2, esp32c3, esp32s3))]
-            RtcSlowClock::RtcSlowClock8mD256 => HertzU32::Hz(17_500_000 / 256),
+            RtcSlowClock::RtcSlowClock8mD256 => Rate::from_hz(17_500_000 / 256),
         }
     }
 }
@@ -307,10 +308,10 @@ impl<'d> Rtc<'d> {
     }
 
     /// Get the time since boot.
-    pub fn time_since_boot(&self) -> MicrosDurationU64 {
-        MicrosDurationU64::micros(
+    pub fn time_since_boot(&self) -> Duration {
+        Duration::from_micros(
             self.time_since_boot_raw() * 1_000_000
-                / RtcClock::slow_freq().frequency().to_Hz() as u64,
+                / RtcClock::slow_freq().frequency().as_hz() as u64,
         )
     }
 
@@ -360,7 +361,7 @@ impl<'d> Rtc<'d> {
     pub fn current_time(&self) -> NaiveDateTime {
         // Current time is boot time + time since boot
 
-        let rtc_time_us = self.time_since_boot().to_micros();
+        let rtc_time_us = self.time_since_boot().as_micros();
         let boot_time_us = self.boot_time_us();
         let wrapped_boot_time_us = u64::MAX - boot_time_us;
 
@@ -394,7 +395,7 @@ impl<'d> Rtc<'d> {
         // Current time is boot time + time since boot (rtc time)
         // So boot time = current time - time since boot (rtc time)
 
-        let rtc_time_us = self.time_since_boot().to_micros();
+        let rtc_time_us = self.time_since_boot().as_micros();
         if current_time_us < rtc_time_us {
             // An overflow would happen if we subtracted rtc_time_us from current_time_us.
             // To work around this, we can wrap around u64::MAX by subtracting the
@@ -708,7 +709,7 @@ impl RtcClock {
             }
         };
 
-        let us_time_estimate = HertzU32::MHz(slowclk_cycles) / expected_freq.frequency();
+        let us_time_estimate = Rate::from_mhz(slowclk_cycles) / expected_freq.frequency();
 
         // Start calibration
         timg0
@@ -997,10 +998,10 @@ impl Rwdt {
     }
 
     /// Configure timeout value in ms for the selected stage.
-    pub fn set_timeout(&mut self, stage: RwdtStage, timeout: MicrosDurationU64) {
+    pub fn set_timeout(&mut self, stage: RwdtStage, timeout: Duration) {
         let rtc_cntl = LP_WDT::regs();
 
-        let timeout_raw = (timeout.to_millis() * (RtcClock::cycles_to_1ms() as u64)) as u32;
+        let timeout_raw = (timeout.as_millis() * (RtcClock::cycles_to_1ms() as u64)) as u32;
         self.set_write_protection(false);
 
         unsafe {
