@@ -74,6 +74,7 @@ use crate::{
         interconnect::{PeripheralInput, PeripheralOutput},
         InputSignal,
         NoPin,
+        OutputConfig,
         OutputSignal,
     },
     pac::spi2::RegisterBlock,
@@ -140,7 +141,10 @@ impl<'d> Spi<'d, Blocking> {
     #[instability::unstable]
     pub fn with_miso(self, miso: impl PeripheralOutput<'d>) -> Self {
         let miso = miso.into();
-        miso.set_to_push_pull_output();
+
+        miso.apply_output_config(&OutputConfig::default());
+        miso.set_output_enable(true);
+
         self.spi.info().miso.connect_to(&miso);
         self
     }

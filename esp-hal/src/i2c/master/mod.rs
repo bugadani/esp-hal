@@ -35,7 +35,9 @@ use crate::{
     clock::Clocks,
     gpio::{
         interconnect::{OutputConnection, PeripheralOutput},
+        DriveMode,
         InputSignal,
+        OutputConfig,
         OutputSignal,
         PinGuard,
         Pull,
@@ -968,9 +970,13 @@ where
         // avoid the pin going low during configuration
         pin.set_output_high(true);
 
-        pin.set_to_open_drain_output();
+        pin.apply_output_config(
+            &OutputConfig::default()
+                .with_drive_mode(DriveMode::OpenDrain)
+                .with_pull(Pull::Up),
+        );
+        pin.set_output_enable(true);
         pin.set_input_enable(true);
-        pin.pull_direction(Pull::Up);
 
         input.connect_to(&pin);
 

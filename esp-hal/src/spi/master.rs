@@ -51,8 +51,10 @@ use crate::{
     dma::{DmaChannelFor, DmaEligible, DmaRxBuffer, DmaTxBuffer},
     gpio::{
         interconnect::{PeripheralInput, PeripheralOutput},
+        InputConfig,
         InputSignal,
         NoPin,
+        OutputConfig,
         OutputSignal,
         PinGuard,
     },
@@ -868,7 +870,10 @@ where
     /// Disconnects the previous pin that was assigned with `with_sck`.
     pub fn with_sck(mut self, sclk: impl PeripheralOutput<'d>) -> Self {
         let sclk = sclk.into();
-        sclk.set_to_push_pull_output();
+
+        sclk.apply_output_config(&OutputConfig::default());
+        sclk.set_output_enable(true);
+
         self.pins.sclk_pin = sclk.connect_with_guard(self.driver().info.sclk);
 
         self
@@ -884,7 +889,9 @@ where
     /// `with_sio0`.
     pub fn with_mosi(mut self, mosi: impl PeripheralOutput<'d>) -> Self {
         let mosi = mosi.into();
-        mosi.set_output_enable(false);
+
+        mosi.apply_output_config(&OutputConfig::default());
+        mosi.set_output_enable(true); // TODO turn this bool into a Yes/No/PeripheralControl trio
 
         self.pins.mosi_pin = mosi.connect_with_guard(self.driver().info.mosi);
 
@@ -900,6 +907,8 @@ where
     /// [DataMode::SingleTwoDataLines]
     pub fn with_miso(self, miso: impl PeripheralInput<'d>) -> Self {
         let miso = miso.into();
+
+        miso.apply_input_config(&InputConfig::default());
         miso.set_input_enable(true);
 
         self.driver().info.miso.connect_to(&miso);
@@ -923,8 +932,12 @@ where
     #[instability::unstable]
     pub fn with_sio0(mut self, mosi: impl PeripheralOutput<'d>) -> Self {
         let mosi = mosi.into();
-        mosi.set_output_enable(true);
+
+        mosi.apply_input_config(&InputConfig::default());
+        mosi.apply_output_config(&OutputConfig::default());
+
         mosi.set_input_enable(true);
+        mosi.set_output_enable(false);
 
         self.driver().info.sio0_input.connect_to(&mosi);
         self.pins.mosi_pin = mosi.connect_with_guard(self.driver().info.mosi);
@@ -947,8 +960,12 @@ where
     #[instability::unstable]
     pub fn with_sio1(mut self, sio1: impl PeripheralOutput<'d>) -> Self {
         let sio1 = sio1.into();
+
+        sio1.apply_input_config(&InputConfig::default());
+        sio1.apply_output_config(&OutputConfig::default());
+
         sio1.set_input_enable(true);
-        sio1.set_output_enable(true);
+        sio1.set_output_enable(false);
 
         self.driver().info.miso.connect_to(&sio1);
         self.pins.sio1_pin = sio1.connect_with_guard(self.driver().info.sio1_output);
@@ -968,8 +985,12 @@ where
     pub fn with_sio2(mut self, sio2: impl PeripheralOutput<'d>) -> Self {
         // TODO: panic if not QSPI?
         let sio2 = sio2.into();
+
+        sio2.apply_input_config(&InputConfig::default());
+        sio2.apply_output_config(&OutputConfig::default());
+
         sio2.set_input_enable(true);
-        sio2.set_output_enable(true);
+        sio2.set_output_enable(false);
 
         unwrap!(self.driver().info.sio2_input).connect_to(&sio2);
         self.pins.sio2_pin = self
@@ -993,8 +1014,12 @@ where
     pub fn with_sio3(mut self, sio3: impl PeripheralOutput<'d>) -> Self {
         // TODO: panic if not QSPI?
         let sio3 = sio3.into();
+
+        sio3.apply_input_config(&InputConfig::default());
+        sio3.apply_output_config(&OutputConfig::default());
+
         sio3.set_input_enable(true);
-        sio3.set_output_enable(true);
+        sio3.set_output_enable(false);
 
         unwrap!(self.driver().info.sio3_input).connect_to(&sio3);
         self.pins.sio3_pin = self
@@ -1020,7 +1045,10 @@ where
     #[instability::unstable]
     pub fn with_cs(mut self, cs: impl PeripheralOutput<'d>) -> Self {
         let cs = cs.into();
-        cs.set_to_push_pull_output();
+
+        cs.apply_output_config(&OutputConfig::default());
+        cs.set_output_enable(true);
+
         self.pins.cs_pin = cs.connect_with_guard(self.driver().info.cs);
 
         self

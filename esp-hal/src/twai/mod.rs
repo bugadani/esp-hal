@@ -124,7 +124,10 @@ use self::filter::{Filter, FilterType};
 use crate::{
     gpio::{
         interconnect::{PeripheralInput, PeripheralOutput},
+        DriveMode,
+        InputConfig,
         InputSignal,
+        OutputConfig,
         OutputSignal,
         Pull,
     },
@@ -702,20 +705,25 @@ where
             .modify(|_, w| w.ext_mode().set_bit());
 
         // Set up the GPIO pins.
-        let rx_pull = if no_transceiver {
-            tx_pin.set_to_open_drain_output();
-            tx_pin.pull_direction(Pull::Up);
+        let tx_config = if no_transceiver {
+            OutputConfig::default()
+                .with_drive_mode(DriveMode::OpenDrain)
+                .with_pull(Pull::Up)
+        } else {
+            OutputConfig::default()
+        };
+
+        tx_pin.apply_output_config(&tx_config);
+        rx_pin.apply_input_config(&InputConfig::default().with_pull(if no_transceiver {
             Pull::Up
         } else {
-            tx_pin.set_to_push_pull_output();
             Pull::None
-        };
-        this.twai.output_signal().connect_to(&tx_pin);
+        }));
 
-        // Setting up RX pin later allows us to use a single pin in tests.
-        // `set_to_push_pull_output` disables input, here we re-enable it if rx_pin
-        // uses the same GPIO.
-        rx_pin.init_input(rx_pull);
+        tx_pin.set_output_enable(true);
+        rx_pin.set_input_enable(true);
+
+        this.twai.output_signal().connect_to(&tx_pin);
         this.twai.input_signal().connect_to(&rx_pin);
 
         // Freeze REC by changing to LOM mode
