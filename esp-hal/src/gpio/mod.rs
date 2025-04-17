@@ -1987,7 +1987,7 @@ impl<'lt> AnyPin<'lt> {
         self.init_gpio();
 
         // AnyPin is used as output only, we can allow bypassing the GPIO matrix.
-        let (_, output) = self.split_no_init();
+        let (_, output) = unsafe { self.split_no_init() };
 
         output
     }
