@@ -1766,6 +1766,7 @@ impl<'d> Flex<'d> {
     #[inline]
     #[instability::unstable]
     pub fn peripheral_input(&self) -> interconnect::InputSignal<'d> {
+        self.pin.set_input_enable(true);
         let mut input = unsafe {
             // Safety: the signal is frozen by this function.
             self.pin.clone_unchecked().split_no_init().0
@@ -1827,6 +1828,7 @@ impl<'d> Flex<'d> {
     #[inline]
     #[instability::unstable]
     pub unsafe fn split_into_drivers(self) -> (Input<'d>, Output<'d>) {
+        self.pin.set_input_enable(true);
         let input = Input {
             pin: Flex {
                 pin: self.pin.clone_unchecked(),
@@ -1908,6 +1910,8 @@ impl<'lt> AnyPin<'lt> {
     /// Peripheral signals allow connecting peripherals together without
     /// using external hardware.
     ///
+    /// Creating an input signal enables the pin's input buffer.
+    ///
     /// # Safety
     ///
     /// The caller must ensure that peripheral drivers don't configure the same
@@ -1938,6 +1942,7 @@ impl<'lt> AnyPin<'lt> {
 
         // Before each use, reset the GPIO to a known state.
         self.init_gpio();
+        self.set_input_enable(true);
 
         let (input, mut output) = self.split_no_init();
 
@@ -1954,6 +1959,8 @@ impl<'lt> AnyPin<'lt> {
     /// Peripheral signals allow connecting peripherals together without
     /// using external hardware.
     ///
+    /// Creating an input signal enables the pin's input buffer.
+    ///
     /// # Safety
     ///
     /// The caller must ensure that peripheral drivers don't configure the same
@@ -1964,6 +1971,7 @@ impl<'lt> AnyPin<'lt> {
     pub unsafe fn into_input_signal(self) -> interconnect::InputSignal<'lt> {
         // Before each use, reset the GPIO to a known state.
         self.init_gpio();
+        self.set_input_enable(true);
 
         let (input, _) = self.split_no_init();
 
