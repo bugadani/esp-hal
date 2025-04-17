@@ -34,7 +34,7 @@ use crate::{
     asynch::AtomicWaker,
     clock::Clocks,
     gpio::{
-        interconnect::{OutputConnection, PeripheralOutput},
+        interconnect::{self, PeripheralOutput},
         DriveMode,
         InputSignal,
         OutputConfig,
@@ -980,7 +980,7 @@ where
 
         input.connect_to(&pin);
 
-        *guard = OutputConnection::connect_with_guard(pin, output);
+        *guard = interconnect::OutputSignal::connect_with_guard(pin, output);
     }
 
     /// Writes bytes to slave with given `address`

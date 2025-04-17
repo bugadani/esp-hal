@@ -12,7 +12,7 @@
 use super::timer::{TimerIFace, TimerSpeed};
 use crate::{
     gpio::{
-        interconnect::{OutputConnection, PeripheralOutput},
+        interconnect::{self, PeripheralOutput},
         DriveMode,
         OutputConfig,
         OutputSignal,
@@ -153,7 +153,7 @@ pub struct Channel<'a, S: TimerSpeed> {
     ledc: &'a RegisterBlock,
     timer: Option<&'a dyn TimerIFace<S>>,
     number: Number,
-    output_pin: OutputConnection<'a>,
+    output_pin: interconnect::OutputSignal<'a>,
 }
 
 impl<'a, S: TimerSpeed> Channel<'a, S> {

@@ -61,7 +61,7 @@ use crate::{
     clock::Clocks,
     dma::{ChannelTx, DmaError, DmaPeripheral, DmaTxBuffer, PeripheralTxChannel, TxChannelFor},
     gpio::{
-        interconnect::{OutputConnection, PeripheralOutput},
+        interconnect::{self, PeripheralOutput},
         OutputConfig,
         OutputSignal,
     },
@@ -622,7 +622,7 @@ impl From<u16> for Command<u16> {
 /// Represents a group of 8 output pins configured for 8-bit parallel data
 /// transmission.
 pub struct TxEightBits<'d> {
-    pins: [OutputConnection<'d>; 8],
+    pins: [interconnect::OutputSignal<'d>; 8],
 }
 
 impl<'d> TxEightBits<'d> {
@@ -677,7 +677,7 @@ impl TxPins for TxEightBits<'_> {
 /// Represents a group of 16 output pins configured for 16-bit parallel data
 /// transmission.
 pub struct TxSixteenBits<'d> {
-    pins: [OutputConnection<'d>; 16],
+    pins: [interconnect::OutputSignal<'d>; 16],
 }
 
 impl<'d> TxSixteenBits<'d> {
