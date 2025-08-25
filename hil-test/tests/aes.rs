@@ -566,7 +566,7 @@ mod tests {
         let signal = mk_static!(Signal<CriticalSectionRawMutex, ()>, Signal::new());
 
         // Start task before we'd start the AES operation
-        let spawner = Spawner::for_current_executor().await;
+        let spawner = unsafe { Spawner::for_current_executor().await };
         spawner.must_spawn(aes_task(signal));
 
         signal.wait().await;
