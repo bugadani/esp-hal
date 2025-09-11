@@ -132,7 +132,9 @@ fn main() -> Result<()> {
     builder.init();
 
     let workspace = std::env::current_dir()?;
-    let target_path = Path::new("target");
+    let target_path = workspace.join("target");
+
+    unsafe { std::env::set_var("CARGO_TARGET_DIR", target_path.to_str().unwrap()) };
 
     match Cli::parse() {
         // Build-related subcommands:
@@ -211,7 +213,11 @@ fn clean(workspace: &Path, args: CleanArgs) -> Result<()> {
         log::info!("Cleaning package: {}", package);
         let path = workspace.join(package.to_string());
 
-        let cargo_args = CargoArgsBuilder::default().subcommand("clean").build();
+        let cargo_args = CargoArgsBuilder::default()
+            .subcommand("clean")
+            .arg("--target-dir")
+            .arg(path.join("target").display().to_string())
+            .build();
 
         xtask::cargo::run(&cargo_args, &path)?;
     }
