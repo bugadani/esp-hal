@@ -59,13 +59,13 @@ struct CiArgs {
     #[arg(long)]
     toolchain: Option<String>,
 
-    /// Whether to run lints
+    /// Whether to skip running lints
     #[arg(long)]
-    lint: bool,
+    no_lint: bool,
 
-    /// Whether to build documentation
+    /// Whether to skip building documentation
     #[arg(long)]
-    docs: bool,
+    no_docs: bool,
 }
 
 #[derive(Debug, Args)]
@@ -384,7 +384,11 @@ fn run_ci_checks(workspace: &Path, args: CiArgs) -> Result<()> {
 
     let mut runner = Runner::new();
 
-    if args.lint {
+    unsafe {
+        std::env::set_var("CI", "true");
+    }
+
+    if !args.no_lint {
         runner.run("Lint", || {
             lint_packages(
                 workspace,
@@ -408,7 +412,7 @@ fn run_ci_checks(workspace: &Path, args: CiArgs) -> Result<()> {
         )
     });
 
-    if args.docs {
+    if !args.no_docs {
         runner.run("Build Docs", || {
             build_documentation(
                 workspace,
@@ -473,7 +477,7 @@ fn run_ci_checks(workspace: &Path, args: CiArgs) -> Result<()> {
             result
         });
 
-        if args.docs {
+        if !args.no_docs {
             // Check documentation
             runner.run("Build LP-HAL docs", || {
                 build_documentation(
