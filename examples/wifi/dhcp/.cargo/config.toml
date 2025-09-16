@@ -2,6 +2,7 @@
 runner    = "espflash flash --monitor"
 rustflags = [
   "-C", "link-arg=-Tlinkall.x",
+  "-C", "link-arg=-Tdefmt.x", # swapping these will cause a defmt table parsing error
   "-C", "force-frame-pointers",
 ]
 
@@ -18,12 +19,13 @@ rustflags = [
 ]
 
 [env]
-ESP_LOG = "info"
+DEFMT_LOG = "info"
 SSID = "SSID"
 PASSWORD = "PASSWORD"
 STATIC_IP = "1.1.1.1 "
 GATEWAY_IP = "1.1.1.1"
 HOST_IP = "1.1.1.1"
+ESP_HAL_CONFIG_FLIP_LINK = "true"
 
 [unstable]
 build-std = ["alloc", "core"]

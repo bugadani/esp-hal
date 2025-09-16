@@ -13,6 +13,7 @@ extern crate alloc;
 use core::net::Ipv4Addr;
 
 use blocking_network_stack::Stack;
+use defmt::println;
 use embedded_io::*;
 use esp_alloc as _;
 use esp_backtrace as _;
@@ -23,7 +24,7 @@ use esp_hal::{
     time::{self, Duration},
     timer::timg::TimerGroup,
 };
-use esp_println::{print, println};
+use esp_println as _;
 use esp_radio::wifi::{ClientConfig, Config, ScanConfig};
 use smoltcp::{
     iface::{SocketSet, SocketStorage},
@@ -37,7 +38,7 @@ const PASSWORD: &str = env!("PASSWORD");
 
 #[main]
 fn main() -> ! {
-    esp_println::logger::init_logger_from_env();
+    // esp_println::logger::init_logger_from_env();
     let config = esp_hal::Config::default().with_cpu_clock(CpuClock::max());
     let peripherals = esp_hal::init(config);
 
@@ -141,14 +142,14 @@ fn main() -> ! {
         let mut buffer = [0u8; 512];
         while let Ok(len) = socket.read(&mut buffer) {
             let to_print = unsafe { core::str::from_utf8_unchecked(&buffer[..len]) };
-            print!("{}", to_print);
+            println!("{}", to_print);
 
             if time::Instant::now() > deadline {
                 println!("Timeout");
                 break;
             }
         }
-        println!();
+        println!("");
 
         socket.disconnect();
 
