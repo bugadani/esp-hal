@@ -106,12 +106,19 @@ impl RunQueue {
             }
         }
 
-        if self.ready_tasks[current_prio].is_empty() {
-            self.ready_priority.unmark(current_prio);
-            debug!("pop - New prio level: {}", self.ready_priority.ready());
-        }
+        self.unmark_level_if_empty(current_prio);
 
         popped
+    }
+
+    fn unmark_level_if_empty(&mut self, level: usize) {
+        if self.ready_tasks[level].is_empty() {
+            self.ready_priority.unmark(level);
+            debug!(
+                "unmark_level_if_empty - New prio level: {}",
+                self.ready_priority.ready()
+            );
+        }
     }
 
     pub(crate) fn is_level_empty(&self, level: usize) -> bool {
@@ -122,12 +129,6 @@ impl RunQueue {
         let priority = to_delete.priority(self);
         self.ready_tasks[priority].remove(to_delete);
 
-        if self.ready_tasks[priority].is_empty() {
-            self.ready_priority.unmark(priority);
-            debug!(
-                "remove - last task removed - New prio level: {}",
-                self.ready_priority.ready()
-            );
-        }
+        self.unmark_level_if_empty(priority);
     }
 }

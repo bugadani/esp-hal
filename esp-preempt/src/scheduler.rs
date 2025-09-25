@@ -270,24 +270,25 @@ impl SchedulerState {
 
             // If the current task is deleted, we can skip saving its context. We signal this by
             // using a null pointer.
-            let current_context = if let Some(mut current) = self.per_cpu[current_cpu].current_task
-            {
+            let current_context = if let Some(current) = self.per_cpu[current_cpu].current_task {
                 // TODO: the SMP scheduler relies on at least the context saving to happen within
                 // the scheduler's critical section. We can't run the scheduler on the other core
                 // while it might try to restore a partially saved context.
-                let current_ref = unsafe { current.as_mut() };
                 #[cfg(multi_core)]
-                if current_ref.pinned_to.is_none()
-                    && current_ref.priority
-                        >= self.per_cpu[1 - current_cpu]
-                            .current_task
-                            .map(|t| unsafe { t.as_ref().priority })
-                            .unwrap_or(0)
                 {
-                    task::schedule_other_core();
+                    let current_ref = unsafe { current.as_ref() };
+                    if current_ref.pinned_to.is_none()
+                        && current_ref.priority
+                            >= self.per_cpu[1 - current_cpu]
+                                .current_task
+                                .map(|t| unsafe { t.as_ref().priority })
+                                .unwrap_or(0)
+                    {
+                        task::schedule_other_core();
+                    }
                 }
 
-                &raw mut current_ref.cpu_context
+                unsafe { &raw mut (*current.as_ptr()).cpu_context }
             } else {
                 core::ptr::null_mut()
             };
