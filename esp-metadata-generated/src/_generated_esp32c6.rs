@@ -299,6 +299,55 @@ macro_rules! for_each_soc_xtal_options {
         _for_each_inner!((40)); _for_each_inner!((all(40)));
     };
 }
+#[macro_export]
+macro_rules! define_clock_tree_types {
+    () => {
+        #[doc = r" Clock tree configuration."]
+        #[doc = r""]
+        #[doc = r" The fields of this struct are optional, with the following caveats:"]
+        #[doc = r" - If `XTL_CLK` is not specified, the crystal frequency will be"]
+        #[doc = r"   automatically detected if possible."]
+        #[doc = r" - The CPU and its upstream clock nodes will be set to a default configuration."]
+        #[doc = r" - Other unspecified clock sources will not be useable by peripherals."]
+        pub struct ClockConfig {}
+        fn apply_clock_config(config: &ClockConfig) {}
+        #[doc = r" Simplifies refcounting."]
+        trait NodeState {
+            fn refcount(&mut self) -> &mut usize;
+        }
+        #[doc = r" State type for nodes that only need a reference count."]
+        struct RefcountState {
+            refcount: usize,
+        }
+        impl NodeState for RefcountState {
+            fn refcount(&mut self) -> &mut usize {
+                &mut self.refcount
+            }
+        }
+        fn increment_reference_count<S: NodeState>(
+            refcount: &::esp_sync::NonReentrantMutex<S>,
+            callback: impl FnOnce(&mut S),
+        ) {
+            refcount.with(|state| {
+                if *state.refcount() == 0 {
+                    callback(state);
+                }
+                *state.refcount() += 1;
+            })
+        }
+        fn decrement_reference_count<S: NodeState>(
+            refcount: &::esp_sync::NonReentrantMutex<S>,
+            callback: impl FnOnce(&mut S),
+        ) {
+            refcount.with(|state| {
+                *state.refcount() -= 1;
+                if *state.refcount() == 0 {
+                    callback(state);
+                }
+            })
+        }
+    };
+}
 /// Implement the `Peripheral` enum and enable/disable/reset functions.
 ///
 /// This macro is intended to be placed in `esp_hal::system`.

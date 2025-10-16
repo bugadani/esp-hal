@@ -2,9 +2,18 @@ use std::{collections::HashMap, str::FromStr};
 
 use anyhow::{Context, Result};
 use convert_case::{Boundary, Case, Casing, pattern};
+use indexmap::IndexMap;
 use proc_macro2::TokenStream;
+use quote::{format_ident, quote};
+use serde::{Deserialize, Serialize};
 
-use crate::cfg::Value;
+use crate::cfg::{
+    Value,
+    clock_tree::{ClockTreeItem, ValidationContext},
+    soc::clock_tree::PeripheralClockTreeEntry,
+};
+
+pub mod clock_tree;
 
 impl super::SocProperties {
     pub(super) fn computed_properties(&self) -> impl Iterator<Item = (&str, bool, Value)> {
@@ -26,9 +35,214 @@ impl super::SocProperties {
     }
 }
 
+/// Represents the clock sources and clock distribution tree in the SoC.
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct SystemClocks {
+    clock_tree: Vec<ClockTreeItem>,
+}
+
+struct ProcessedClockData<'c> {
+    classified_clocks: IndexMap<&'c str, ClockType<'c>>,
+    clock_tree: &'c [ClockTreeItem],
+}
+
+impl ProcessedClockData<'_> {
+    fn node(&self, name: &str) -> &ClockTreeItem {
+        self.clock_tree
+            .iter()
+            .find(|item| item.name == name)
+            .unwrap()
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum ClockType<'s> {
+    /// The clock tree item is not configurable.
+    Fixed,
+
+    /// The clock tree item is configurable.
+    Configurable,
+
+    /// The clock tree item is configured by some other item.
+    Dependent(&'s str),
+}
+
+impl SystemClocks {
+    /// Returns an iterator over the clock tree items.
+    fn process(&self) -> Result<ProcessedClockData<'_>> {
+        let validation_context = ValidationContext::from(self.clock_tree.as_slice());
+        for tree_item in self.clock_tree.iter() {
+            tree_item.validate_source_data(&validation_context)?;
+        }
+
+        // Classify clock tree items
+        // TODO: return clocks in a topological order
+        let mut classified_clocks = IndexMap::new();
+        for item in self.clock_tree.iter() {
+            // If item A configures item B, then item B is a dependent clock tree item.
+            item.for_each_configured(|clock| {
+                classified_clocks.insert(clock, ClockType::Dependent(&item.name));
+            });
+
+            // Each tree item tells its own clock type, except for dependent items. If something has
+            // already been classified, we can only change it from its kind to dependent.
+            if classified_clocks.get(item.name.as_str()).is_none() {
+                classified_clocks.insert(
+                    &item.name,
+                    if item.is_configurable() {
+                        ClockType::Configurable
+                    } else {
+                        ClockType::Fixed
+                    },
+                );
+            }
+        }
+
+        Ok(ProcessedClockData {
+            clock_tree: self.clock_tree.as_slice(),
+            classified_clocks,
+        })
+    }
+
+    fn clock_item(&self, name: &str) -> &ClockTreeItem {
+        self.clock_tree
+            .iter()
+            .find(|item| item.name == name)
+            .unwrap_or_else(|| panic!("Clock item {} not found", name))
+    }
+}
+
+impl super::GenericProperty for SystemClocks {
+    fn macros(&self) -> Option<proc_macro2::TokenStream> {
+        let processed_clocks = self.process().unwrap();
+
+        let mut config_types = vec![];
+        let mut configurables = vec![];
+        let mut system_config_steps = vec![];
+        for (item, kind) in processed_clocks
+            .classified_clocks
+            .iter()
+            .map(|(item, kind)| (item, kind.clone()))
+        {
+            let clock_item = self.clock_item(item);
+
+            // Definitions every clock node has:
+            // - A refcount (technically this could be optimized away in some cases)
+            // - request/release functions
+            let config_type_decl = clock_item.config_type();
+            let definitions = clock_item.clock_node_defs(&processed_clocks);
+            let request_release_function_decl =
+                clock_item.request_release_functions(&processed_clocks);
+
+            config_types.push(quote! {
+                #config_type_decl
+
+                #definitions
+                #request_release_function_decl
+            });
+
+            if kind == ClockType::Configurable {
+                let config_type_name = clock_item.config_type_name();
+                let config_apply_function_name = clock_item.config_apply_function_name();
+
+                let item = clock_item.name().to_case(Case::Snake);
+
+                let name = format_ident!("{}", item);
+
+                let docline = clock_item.config_documentation().map(|doc| {
+                    // TODO: add explanation what happens if the field is left `None`.
+                    let doc = doc.lines();
+                    quote! { #(#[doc = #doc])* }
+                });
+
+                configurables.push(quote! {
+                    #docline
+                    #name: Option<#config_type_name>,
+                });
+
+                system_config_steps.push(quote! {
+                    if let Some(config) = config.#name.as_ref() {
+                        // TODO: implement configuration logic
+                        // each clock tree node has its own config function, even
+                        // if they have the same config type (esp. peripheral clock source nodes)
+                        // `configures` options need to generate the right config value,
+                        // and pass it to the correct config function
+                        #config_apply_function_name(config);
+                    }
+                });
+            }
+        }
+
+        // TODO: generate the skeletons of functions that need to be implemented by the HAL, and
+        // make it easily copy-pasteable.
+        Some(quote! {
+            #[macro_export]
+            macro_rules! define_clock_tree_types {
+                () => {
+                    #(#config_types)*
+
+                    /// Clock tree configuration.
+                    ///
+                    /// The fields of this struct are optional, with the following caveats:
+                    // TODO: these should be also generated from metadata, as the list is chip-specific.
+                    /// - If `XTL_CLK` is not specified, the crystal frequency will be
+                    ///   automatically detected if possible.
+                    /// - The CPU and its upstream clock nodes will be set to a default configuration.
+                    /// - Other unspecified clock sources will not be useable by peripherals.
+                    pub struct ClockConfig {
+                        #(#configurables)*
+                    }
+
+                    // TODO: temporary name just to get the code's shape
+                    fn apply_clock_config(config: &ClockConfig) {
+                        #(#system_config_steps)*
+                    }
+
+                    /// Simplifies refcounting.
+                    trait NodeState {
+                        fn refcount(&mut self) -> &mut usize;
+                    }
+
+                    /// State type for nodes that only need a reference count.
+                    struct RefcountState {
+                        refcount: usize,
+                    }
+
+                    impl NodeState for RefcountState {
+                        fn refcount(&mut self) -> &mut usize {
+                            &mut self.refcount
+                        }
+                    }
+
+                    // TODO: take clock IDs and update bitmaps
+                    // static CLOCK_BITMAP: ::portable_atomic::AtomicU32 = ::portable_atomic::AtomicU32::new(0);
+                    fn increment_reference_count<S: NodeState>(refcount: &::esp_sync::NonReentrantMutex<S>, callback: impl FnOnce(&mut S)) {
+                        refcount.with(|state| {
+                            if *state.refcount() == 0 {
+                                // CLOCK_BITMAP.fetch_or(!clock_id, Ordering::Relaxed);
+                                callback(state);
+                            }
+                            *state.refcount() += 1;
+                        })
+                    }
+                    fn decrement_reference_count<S: NodeState>(refcount: &::esp_sync::NonReentrantMutex<S>, callback: impl FnOnce(&mut S)) {
+                        refcount.with(|state| {
+                            *state.refcount() -= 1;
+                            if *state.refcount() == 0 {
+                                callback(state);
+                                // CLOCK_BITMAP.fetch_and(!clock_id, Ordering::Relaxed);
+                            }
+                        })
+                    }
+                };
+            }
+        })
+    }
+}
+
 /// A named template. Can contain `{{placeholder}}` placeholders that will be substituted with
 /// actual values.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct Template {
     /// The name of the template. Other templates can substitute this template's value by using the
     /// `{{name}}` placeholder.
@@ -46,7 +260,7 @@ pub struct Template {
 /// `template_params` is a map of substitutions, which will overwrite the defaults set in
 /// `PeripheralClocks`. This way each peripheral clock signal can either simply use the defaults,
 /// or override them with custom values in case they don't fit the scheme for some reason.
-#[derive(Debug, Default, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Default, Clone, Deserialize)]
 pub struct PeripheralClock {
     /// The name of the peripheral clock signal. Usually specified as CamelCase. Also determines
     /// the value of the `peripheral` template parameter, by converting the name to snake_case.
@@ -62,9 +276,13 @@ pub struct PeripheralClock {
     // outside of clock calibrations when the device has Systimer.
     #[serde(default)]
     keep_enabled: bool,
+
+    #[serde(default)]
+    #[serde(deserialize_with = "clock_tree::ref_or_def")]
+    clocks: PeripheralClockTreeEntry,
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Default, Clone, Deserialize)]
 pub struct PeripheralClocks {
     pub(crate) templates: Vec<Template>,
     pub(crate) peripheral_clocks: Vec<PeripheralClock>,
@@ -104,7 +322,7 @@ impl PeripheralClocks {
                 let clock_name = quote::format_ident!("{}", clock.name);
                 let clock_en = self.clk_en(clock)?;
 
-                Ok(quote::quote! {
+                Ok(quote! {
                     Peripheral::#clock_name => {
                         #clock_en
                     }
@@ -117,7 +335,7 @@ impl PeripheralClocks {
                 let clock_name = quote::format_ident!("{}", clock.name);
                 let rst = self.rst(clock)?;
 
-                Ok(quote::quote! {
+                Ok(quote! {
                     Peripheral::#clock_name => {
                         #rst
                     }
@@ -125,7 +343,7 @@ impl PeripheralClocks {
             })
             .collect::<Result<Vec<_>>>()?;
 
-        Ok(quote::quote! {
+        Ok(quote! {
             /// Implement the `Peripheral` enum and enable/disable/reset functions.
             ///
             /// This macro is intended to be placed in `esp_hal::system`.

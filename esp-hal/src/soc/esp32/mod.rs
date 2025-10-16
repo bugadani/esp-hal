@@ -25,3 +25,7 @@ pub(crate) mod constants {
 pub(crate) unsafe fn configure_cpu_caches() {}
 
 pub(crate) fn pre_init() {}
+
+mod it_builds {
+    define_clock_tree_types!();
+}

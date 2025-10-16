@@ -50,7 +50,8 @@ impl Chip {
             if std::env::var(env).is_ok() {
                 if chip.is_some() {
                     return Err(
-                        "Expected exactly one of the following features to be enabled: esp32, esp32c2, esp32c3, esp32c6, esp32h2, esp32s2, esp32s3",
+                        "Expected exactly one of the following features to be enabled: esp32, \
+                         esp32c2, esp32c3, esp32c6, esp32h2, esp32s2, esp32s3",
                     );
                 }
                 chip = Some(c);
@@ -59,7 +60,8 @@ impl Chip {
         match chip {
             Some(chip) => Ok(chip),
             None => Err(
-                "Expected exactly one of the following features to be enabled: esp32, esp32c2, esp32c3, esp32c6, esp32h2, esp32s2, esp32s3",
+                "Expected exactly one of the following features to be enabled: esp32, esp32c2, \
+                 esp32c3, esp32c6, esp32h2, esp32s2, esp32s3",
             ),
         }
     }
@@ -2956,20 +2958,25 @@ pub fn emit_check_cfg_directives() {
     println!("cargo:rustc-check-cfg=cfg(gpio_constant_1_input, values(\"56\",\"30\"))");
     println!("cargo:rustc-check-cfg=cfg(gpio_func_in_sel_offset, values(\"0\"))");
     println!(
-        "cargo:rustc-check-cfg=cfg(gpio_input_signal_max, values(\"206\",\"100\",\"124\",\"242\",\"255\"))"
+        "cargo:rustc-check-cfg=cfg(gpio_input_signal_max, \
+         values(\"206\",\"100\",\"124\",\"242\",\"255\"))"
     );
     println!("cargo:rustc-check-cfg=cfg(gpio_output_signal_max, values(\"256\",\"128\"))");
     println!(
-        "cargo:rustc-check-cfg=cfg(i2c_master_i2c0_data_register_ahb_address, values(\"1610690588\"))"
+        "cargo:rustc-check-cfg=cfg(i2c_master_i2c0_data_register_ahb_address, \
+         values(\"1610690588\"))"
     );
     println!(
-        "cargo:rustc-check-cfg=cfg(i2c_master_max_bus_timeout, values(\"1048575\",\"31\",\"16777215\"))"
+        "cargo:rustc-check-cfg=cfg(i2c_master_max_bus_timeout, \
+         values(\"1048575\",\"31\",\"16777215\"))"
     );
     println!("cargo:rustc-check-cfg=cfg(i2c_master_ll_intr_mask, values(\"262143\",\"131071\"))");
     println!("cargo:rustc-check-cfg=cfg(i2c_master_fifo_size, values(\"32\",\"16\"))");
     println!("cargo:rustc-check-cfg=cfg(interrupts_status_registers, values(\"3\",\"2\",\"4\"))");
     println!(
-        "cargo:rustc-check-cfg=cfg(rmt_ram_start, values(\"1073047552\",\"1610703872\",\"1610638336\",\"1610642432\",\"1061250048\",\"1610704896\"))"
+        "cargo:rustc-check-cfg=cfg(rmt_ram_start, \
+         values(\"1073047552\",\"1610703872\",\"1610638336\",\"1610642432\",\"1061250048\",\"\
+         1610704896\"))"
     );
     println!("cargo:rustc-check-cfg=cfg(rmt_channel_ram_size, values(\"64\",\"48\"))");
     println!("cargo:rustc-check-cfg=cfg(rng_apb_cycle_wait_num, values(\"16\"))");

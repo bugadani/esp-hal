@@ -279,6 +279,1487 @@ macro_rules! for_each_soc_xtal_options {
         (40)));
     };
 }
+#[macro_export]
+macro_rules! define_clock_tree_types {
+    () => {
+        #[doc = " Selects the output frequency of `XTL_CLK`."]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+        pub enum XtlClkConfig {
+            #[doc = " 24 MHz"]
+            _24,
+            #[doc = " 40 MHz"]
+            _40,
+        }
+        static XTL_CLK_STATE: ::esp_sync::NonReentrantMutex<RefcountState> =
+            ::esp_sync::NonReentrantMutex::new(RefcountState { refcount: 0 });
+        pub fn apply_xtl_clk(config: &XtlClkConfig) {
+            apply_xtl_clk_impl(config)
+        }
+        fn apply_xtl_clk_impl(config: &XtlClkConfig) {
+            todo!(
+                "This needs to be implemented by the HAL. This is just a placeholder to make the \
+                 generated code build."
+            )
+        }
+        pub fn request_xtl_clk() {
+            increment_reference_count(&XTL_CLK_STATE, |state| {
+                enable_xtl_clk(state, true);
+            });
+        }
+        pub fn release_xtl_clk() {
+            decrement_reference_count(&XTL_CLK_STATE, |state| {
+                enable_xtl_clk(state, false);
+            });
+        }
+        fn enable_xtl_clk(state: &mut RefcountState, enable: bool) {
+            _ = state;
+            enable_xtl_clk_impl(enable)
+        }
+        fn enable_xtl_clk_impl(_: bool) {
+            todo!(
+                "This function needs to be implemented by the HAL. This is just a placeholder to \
+                 make the generated code build."
+            )
+        }
+        #[doc = " Selects the output frequency of `PLL_CLK`. Depends on `XTL_CLK`."]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+        pub enum PllClkConfig {
+            #[doc = " 320 MHz"]
+            _320,
+            #[doc = " 480 MHz"]
+            _480,
+        }
+        static PLL_CLK_STATE: ::esp_sync::NonReentrantMutex<RefcountState> =
+            ::esp_sync::NonReentrantMutex::new(RefcountState { refcount: 0 });
+        pub fn apply_pll_clk(config: &PllClkConfig) {
+            todo!()
+        }
+        pub fn request_pll_clk() {
+            increment_reference_count(&PLL_CLK_STATE, |state| {
+                request_xtl_clk();
+                enable_pll_clk(state, true);
+            });
+        }
+        pub fn release_pll_clk() {
+            decrement_reference_count(&PLL_CLK_STATE, |state| {
+                enable_pll_clk(state, false);
+                release_xtl_clk();
+            });
+        }
+        fn enable_pll_clk(state: &mut RefcountState, enable: bool) {
+            _ = state;
+            enable_pll_clk_impl(enable)
+        }
+        fn enable_pll_clk_impl(_: bool) {
+            todo!(
+                "This function needs to be implemented by the HAL. This is just a placeholder to \
+                 make the generated code build."
+            )
+        }
+        #[doc = " The target frequency of the `APLL_CLK` clock source. Depends on `PLL_CLK`."]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+        pub struct ApllClkConfig(u32);
+        impl ApllClkConfig {
+            #[doc = r" Creates a new clock source configuration."]
+            #[doc = ""]
+            #[doc = " # Panics"]
+            #[doc = ""]
+            #[doc = " Panics if the output frequency value is outside the"]
+            #[doc = " valid range (16 MHz - 128 MHz)."]
+            pub const fn new(frequency: u32) -> Self {
+                ::core::assert!(
+                    frequency >= 16000000u32 && frequency <= 128000000u32,
+                    "`APLL_CLK` output frequency value must be between 16000000 and 128000000 \
+                     (inclusive)."
+                );
+                Self(frequency)
+            }
+        }
+        static APLL_CLK_STATE: ::esp_sync::NonReentrantMutex<RefcountState> =
+            ::esp_sync::NonReentrantMutex::new(RefcountState { refcount: 0 });
+        pub fn apply_apll_clk(config: &ApllClkConfig) {
+            todo!()
+        }
+        pub fn request_apll_clk() {
+            increment_reference_count(&APLL_CLK_STATE, |state| {
+                request_pll_clk();
+                enable_apll_clk(state, true);
+            });
+        }
+        pub fn release_apll_clk() {
+            decrement_reference_count(&APLL_CLK_STATE, |state| {
+                enable_apll_clk(state, false);
+                release_pll_clk();
+            });
+        }
+        fn enable_apll_clk(state: &mut RefcountState, enable: bool) {
+            _ = state;
+            enable_apll_clk_impl(enable)
+        }
+        fn enable_apll_clk_impl(_: bool) {
+            todo!(
+                "This function needs to be implemented by the HAL. This is just a placeholder to \
+                 make the generated code build."
+            )
+        }
+        static RC_FAST_CLK_STATE: ::esp_sync::NonReentrantMutex<RefcountState> =
+            ::esp_sync::NonReentrantMutex::new(RefcountState { refcount: 0 });
+        pub fn request_rc_fast_clk() {
+            increment_reference_count(&RC_FAST_CLK_STATE, |state| {
+                enable_rc_fast_clk_impl(true);
+            });
+        }
+        pub fn release_rc_fast_clk() {
+            decrement_reference_count(&RC_FAST_CLK_STATE, |state| {
+                enable_rc_fast_clk_impl(false);
+            });
+        }
+        fn enable_rc_fast_clk_impl(_: bool) {
+            todo!(
+                "This function needs to be implemented by the HAL. This is just a placeholder to \
+                 make the generated code build."
+            )
+        }
+        #[doc = " The list of clock signals that the `SYSCON_PRE_DIV_IN` multiplexer can output."]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+        pub enum SysconPreDivInConfig {
+            #[doc = " Selects `XTL_CLK`."]
+            Xtal,
+            #[doc = " Selects `RC_FAST_CLK`."]
+            RcFast,
+        }
+        struct SysconPreDivInConfigState {
+            refcount: usize,
+            current_selection: Option<SysconPreDivInConfig>,
+        }
+        impl SysconPreDivInConfigState {
+            fn set_selector(
+                &mut self,
+                config: SysconPreDivInConfig,
+            ) -> Option<SysconPreDivInConfig> {
+                self.current_selection.replace(config)
+            }
+        }
+        impl NodeState for SysconPreDivInConfigState {
+            fn refcount(&mut self) -> &mut usize {
+                &mut self.refcount
+            }
+        }
+        static SYSCON_PRE_DIV_IN_STATE: ::esp_sync::NonReentrantMutex<SysconPreDivInConfigState> =
+            ::esp_sync::NonReentrantMutex::new(SysconPreDivInConfigState {
+                refcount: 0,
+                current_selection: None,
+            });
+        pub fn apply_syscon_pre_div_in(config: &SysconPreDivInConfig) {
+            let new_selector = *config;
+            SYSCON_PRE_DIV_IN_STATE.with(|state| {
+                let old_selector = state.set_selector(new_selector);
+                todo!("Apply `configures` directives");
+                if state.refcount > 0 {
+                    syscon_pre_div_in_request_upstream(new_selector);
+                    apply_syscon_pre_div_in_impl(old_selector, new_selector);
+                    syscon_pre_div_in_release_upstream(new_selector);
+                } else {
+                    apply_syscon_pre_div_in_impl(old_selector, new_selector);
+                }
+            });
+        }
+        pub fn syscon_pre_div_in_request_upstream(selector: SysconPreDivInConfig) {
+            match selector {
+                SysconPreDivInConfig::Xtal => request_xtl_clk(),
+                SysconPreDivInConfig::RcFast => request_rc_fast_clk(),
+            }
+        }
+        pub fn syscon_pre_div_in_release_upstream(selector: SysconPreDivInConfig) {
+            match selector {
+                SysconPreDivInConfig::Xtal => release_xtl_clk(),
+                SysconPreDivInConfig::RcFast => release_rc_fast_clk(),
+            }
+        }
+        fn apply_syscon_pre_div_in_impl(
+            old_selector: Option<SysconPreDivInConfig>,
+            new_selector: SysconPreDivInConfig,
+        ) {
+            todo!(
+                "This needs to be implemented by the HAL. This is just a placeholder to make the \
+                 generated code build."
+            )
+        }
+        pub fn request_syscon_pre_div_in() {
+            increment_reference_count(&SYSCON_PRE_DIV_IN_STATE, |state| {
+                if let Some(selector) = state.current_selection {
+                    syscon_pre_div_in_request_upstream(selector);
+                }
+                enable_syscon_pre_div_in(state, true);
+            });
+        }
+        pub fn release_syscon_pre_div_in() {
+            decrement_reference_count(&SYSCON_PRE_DIV_IN_STATE, |state| {
+                enable_syscon_pre_div_in(state, false);
+                if let Some(selector) = state.current_selection {
+                    syscon_pre_div_in_release_upstream(selector);
+                }
+            });
+        }
+        fn enable_syscon_pre_div_in(state: &mut SysconPreDivInConfigState, enable: bool) {
+            _ = state;
+            enable_syscon_pre_div_in_impl(enable)
+        }
+        fn enable_syscon_pre_div_in_impl(_: bool) {
+            todo!(
+                "This function needs to be implemented by the HAL. This is just a placeholder to \
+                 make the generated code build."
+            )
+        }
+        #[doc = " Configures the `SYSCON_PRE_DIV` clock divider."]
+        #[doc = ""]
+        #[doc = " The output is calculated as `OUTPUT = SYSCON_PRE_DIV_IN / (DIVISOR + 1)`."]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+        pub struct SysconPreDivConfig(u32);
+        impl SysconPreDivConfig {
+            #[doc = r" Creates a new divider configuration."]
+            #[doc = ""]
+            #[doc = " # Panics"]
+            #[doc = ""]
+            #[doc = " Panics if the output frequency value is outside the"]
+            #[doc = " valid range (0 ..= 1023)."]
+            pub const fn new(divisor: u32) -> Self {
+                ::core::assert!(
+                    divisor >= 0u32 && divisor <= 1023u32,
+                    "`SYSCON_PRE_DIV` divisor value must be between 0 and 1023 (inclusive)."
+                );
+                Self(divisor)
+            }
+        }
+        static SYSCON_PRE_DIV_STATE: ::esp_sync::NonReentrantMutex<RefcountState> =
+            ::esp_sync::NonReentrantMutex::new(RefcountState { refcount: 0 });
+        pub fn apply_syscon_pre_div(config: &SysconPreDivConfig) {
+            todo!()
+        }
+        pub fn request_syscon_pre_div() {
+            increment_reference_count(&SYSCON_PRE_DIV_STATE, |state| {
+                request_syscon_pre_div_in();
+                enable_syscon_pre_div(state, true);
+            });
+        }
+        pub fn release_syscon_pre_div() {
+            decrement_reference_count(&SYSCON_PRE_DIV_STATE, |state| {
+                enable_syscon_pre_div(state, false);
+                release_syscon_pre_div_in();
+            });
+        }
+        fn enable_syscon_pre_div(state: &mut RefcountState, enable: bool) {
+            _ = state;
+            enable_syscon_pre_div_impl(enable)
+        }
+        fn enable_syscon_pre_div_impl(_: bool) {
+            todo!(
+                "This function needs to be implemented by the HAL. This is just a placeholder to \
+                 make the generated code build."
+            )
+        }
+        #[doc = " The list of clock signals that the `CPU_PLL_DIV_IN` multiplexer can output."]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+        pub enum CpuPllDivInConfig {
+            #[doc = " Selects `PLL_CLK`."]
+            Pll,
+            #[doc = " Selects `APLL_CLK`."]
+            Apll,
+        }
+        struct CpuPllDivInConfigState {
+            refcount: usize,
+            current_selection: Option<CpuPllDivInConfig>,
+        }
+        impl CpuPllDivInConfigState {
+            fn set_selector(&mut self, config: CpuPllDivInConfig) -> Option<CpuPllDivInConfig> {
+                self.current_selection.replace(config)
+            }
+        }
+        impl NodeState for CpuPllDivInConfigState {
+            fn refcount(&mut self) -> &mut usize {
+                &mut self.refcount
+            }
+        }
+        static CPU_PLL_DIV_IN_STATE: ::esp_sync::NonReentrantMutex<CpuPllDivInConfigState> =
+            ::esp_sync::NonReentrantMutex::new(CpuPllDivInConfigState {
+                refcount: 0,
+                current_selection: None,
+            });
+        pub fn apply_cpu_pll_div_in(config: &CpuPllDivInConfig) {
+            let new_selector = *config;
+            CPU_PLL_DIV_IN_STATE.with(|state| {
+                let old_selector = state.set_selector(new_selector);
+                todo!("Apply `configures` directives");
+                if state.refcount > 0 {
+                    cpu_pll_div_in_request_upstream(new_selector);
+                    apply_cpu_pll_div_in_impl(old_selector, new_selector);
+                    cpu_pll_div_in_release_upstream(new_selector);
+                } else {
+                    apply_cpu_pll_div_in_impl(old_selector, new_selector);
+                }
+            });
+        }
+        pub fn cpu_pll_div_in_request_upstream(selector: CpuPllDivInConfig) {
+            match selector {
+                CpuPllDivInConfig::Pll => request_pll_clk(),
+                CpuPllDivInConfig::Apll => request_apll_clk(),
+            }
+        }
+        pub fn cpu_pll_div_in_release_upstream(selector: CpuPllDivInConfig) {
+            match selector {
+                CpuPllDivInConfig::Pll => release_pll_clk(),
+                CpuPllDivInConfig::Apll => release_apll_clk(),
+            }
+        }
+        fn apply_cpu_pll_div_in_impl(
+            old_selector: Option<CpuPllDivInConfig>,
+            new_selector: CpuPllDivInConfig,
+        ) {
+            todo!(
+                "This needs to be implemented by the HAL. This is just a placeholder to make the \
+                 generated code build."
+            )
+        }
+        pub fn request_cpu_pll_div_in() {
+            increment_reference_count(&CPU_PLL_DIV_IN_STATE, |state| {
+                if let Some(selector) = state.current_selection {
+                    cpu_pll_div_in_request_upstream(selector);
+                }
+                enable_cpu_pll_div_in(state, true);
+            });
+        }
+        pub fn release_cpu_pll_div_in() {
+            decrement_reference_count(&CPU_PLL_DIV_IN_STATE, |state| {
+                enable_cpu_pll_div_in(state, false);
+                if let Some(selector) = state.current_selection {
+                    cpu_pll_div_in_release_upstream(selector);
+                }
+            });
+        }
+        fn enable_cpu_pll_div_in(state: &mut CpuPllDivInConfigState, enable: bool) {
+            _ = state;
+            enable_cpu_pll_div_in_impl(enable)
+        }
+        fn enable_cpu_pll_div_in_impl(_: bool) {
+            todo!(
+                "This function needs to be implemented by the HAL. This is just a placeholder to \
+                 make the generated code build."
+            )
+        }
+        #[doc = " Configures the `CPU_PLL_DIV` clock divider."]
+        #[doc = ""]
+        #[doc = " The output is calculated as `OUTPUT = CPU_PLL_DIV_IN / DIVISOR`."]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+        pub enum CpuPllDivConfig {
+            #[doc = " Selects `DIVISOR = 2`."]
+            _2,
+            #[doc = " Selects `DIVISOR = 4`."]
+            _4,
+        }
+        static CPU_PLL_DIV_STATE: ::esp_sync::NonReentrantMutex<RefcountState> =
+            ::esp_sync::NonReentrantMutex::new(RefcountState { refcount: 0 });
+        pub fn apply_cpu_pll_div(config: &CpuPllDivConfig) {
+            todo!()
+        }
+        pub fn request_cpu_pll_div() {
+            increment_reference_count(&CPU_PLL_DIV_STATE, |state| {
+                request_cpu_pll_div_in();
+                enable_cpu_pll_div(state, true);
+            });
+        }
+        pub fn release_cpu_pll_div() {
+            decrement_reference_count(&CPU_PLL_DIV_STATE, |state| {
+                enable_cpu_pll_div(state, false);
+                release_cpu_pll_div_in();
+            });
+        }
+        fn enable_cpu_pll_div(state: &mut RefcountState, enable: bool) {
+            _ = state;
+            enable_cpu_pll_div_impl(enable)
+        }
+        fn enable_cpu_pll_div_impl(_: bool) {
+            todo!(
+                "This function needs to be implemented by the HAL. This is just a placeholder to \
+                 make the generated code build."
+            )
+        }
+        #[doc = " The list of clock signals that the `APB_CLK` multiplexer can output."]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+        pub enum ApbClkConfig {
+            #[doc = " Selects `APB_CLK_80M`."]
+            Pll80m,
+            #[doc = " Selects `APB_CLK_CPU_DIV2`."]
+            CpuDiv2,
+            #[doc = " Selects `CPU_CLK`."]
+            Cpu,
+        }
+        struct ApbClkConfigState {
+            refcount: usize,
+            current_selection: Option<ApbClkConfig>,
+        }
+        impl ApbClkConfigState {
+            fn set_selector(&mut self, config: ApbClkConfig) -> Option<ApbClkConfig> {
+                self.current_selection.replace(config)
+            }
+        }
+        impl NodeState for ApbClkConfigState {
+            fn refcount(&mut self) -> &mut usize {
+                &mut self.refcount
+            }
+        }
+        static APB_CLK_STATE: ::esp_sync::NonReentrantMutex<ApbClkConfigState> =
+            ::esp_sync::NonReentrantMutex::new(ApbClkConfigState {
+                refcount: 0,
+                current_selection: None,
+            });
+        pub fn apply_apb_clk(config: &ApbClkConfig) {
+            let new_selector = *config;
+            APB_CLK_STATE.with(|state| {
+                let old_selector = state.set_selector(new_selector);
+                todo!("Apply `configures` directives");
+                if state.refcount > 0 {
+                    apb_clk_request_upstream(new_selector);
+                    apply_apb_clk_impl(old_selector, new_selector);
+                    apb_clk_release_upstream(new_selector);
+                } else {
+                    apply_apb_clk_impl(old_selector, new_selector);
+                }
+            });
+        }
+        pub fn apb_clk_request_upstream(selector: ApbClkConfig) {
+            match selector {
+                ApbClkConfig::Pll80m => request_apb_clk_80m(),
+                ApbClkConfig::CpuDiv2 => request_apb_clk_cpu_div2(),
+                ApbClkConfig::Cpu => request_cpu_clk(),
+            }
+        }
+        pub fn apb_clk_release_upstream(selector: ApbClkConfig) {
+            match selector {
+                ApbClkConfig::Pll80m => release_apb_clk_80m(),
+                ApbClkConfig::CpuDiv2 => release_apb_clk_cpu_div2(),
+                ApbClkConfig::Cpu => release_cpu_clk(),
+            }
+        }
+        fn apply_apb_clk_impl(old_selector: Option<ApbClkConfig>, new_selector: ApbClkConfig) {
+            todo!(
+                "This needs to be implemented by the HAL. This is just a placeholder to make the \
+                 generated code build."
+            )
+        }
+        pub fn request_apb_clk() {
+            increment_reference_count(&APB_CLK_STATE, |state| {
+                if let Some(selector) = state.current_selection {
+                    apb_clk_request_upstream(selector);
+                }
+                enable_apb_clk(state, true);
+            });
+        }
+        pub fn release_apb_clk() {
+            decrement_reference_count(&APB_CLK_STATE, |state| {
+                enable_apb_clk(state, false);
+                if let Some(selector) = state.current_selection {
+                    apb_clk_release_upstream(selector);
+                }
+            });
+        }
+        fn enable_apb_clk(state: &mut ApbClkConfigState, enable: bool) {
+            _ = state;
+            enable_apb_clk_impl(enable)
+        }
+        fn enable_apb_clk_impl(_: bool) {
+            todo!(
+                "This function needs to be implemented by the HAL. This is just a placeholder to \
+                 make the generated code build."
+            )
+        }
+        #[doc = " The list of clock signals that the `REF_TICK` multiplexer can output."]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+        pub enum RefTickConfig {
+            #[doc = " Selects `REF_TICK_PLL`."]
+            Pll,
+            #[doc = " Selects `REF_TICK_APLL`."]
+            Apll,
+            #[doc = " Selects `REF_TICK_XTAL`."]
+            Xtal,
+            #[doc = " Selects `REF_TICK_FOSC`."]
+            Fosc,
+        }
+        struct RefTickConfigState {
+            refcount: usize,
+            current_selection: Option<RefTickConfig>,
+        }
+        impl RefTickConfigState {
+            fn set_selector(&mut self, config: RefTickConfig) -> Option<RefTickConfig> {
+                self.current_selection.replace(config)
+            }
+        }
+        impl NodeState for RefTickConfigState {
+            fn refcount(&mut self) -> &mut usize {
+                &mut self.refcount
+            }
+        }
+        static REF_TICK_STATE: ::esp_sync::NonReentrantMutex<RefTickConfigState> =
+            ::esp_sync::NonReentrantMutex::new(RefTickConfigState {
+                refcount: 0,
+                current_selection: None,
+            });
+        pub fn apply_ref_tick(config: &RefTickConfig) {
+            let new_selector = *config;
+            REF_TICK_STATE.with(|state| {
+                let old_selector = state.set_selector(new_selector);
+                todo!("Apply `configures` directives");
+                if state.refcount > 0 {
+                    ref_tick_request_upstream(new_selector);
+                    apply_ref_tick_impl(old_selector, new_selector);
+                    ref_tick_release_upstream(new_selector);
+                } else {
+                    apply_ref_tick_impl(old_selector, new_selector);
+                }
+            });
+        }
+        pub fn ref_tick_request_upstream(selector: RefTickConfig) {
+            match selector {
+                RefTickConfig::Pll => request_ref_tick_pll(),
+                RefTickConfig::Apll => request_ref_tick_apll(),
+                RefTickConfig::Xtal => request_ref_tick_xtal(),
+                RefTickConfig::Fosc => request_ref_tick_fosc(),
+            }
+        }
+        pub fn ref_tick_release_upstream(selector: RefTickConfig) {
+            match selector {
+                RefTickConfig::Pll => release_ref_tick_pll(),
+                RefTickConfig::Apll => release_ref_tick_apll(),
+                RefTickConfig::Xtal => release_ref_tick_xtal(),
+                RefTickConfig::Fosc => release_ref_tick_fosc(),
+            }
+        }
+        fn apply_ref_tick_impl(old_selector: Option<RefTickConfig>, new_selector: RefTickConfig) {
+            todo!(
+                "This needs to be implemented by the HAL. This is just a placeholder to make the \
+                 generated code build."
+            )
+        }
+        pub fn request_ref_tick() {
+            increment_reference_count(&REF_TICK_STATE, |state| {
+                if let Some(selector) = state.current_selection {
+                    ref_tick_request_upstream(selector);
+                }
+                enable_ref_tick(state, true);
+            });
+        }
+        pub fn release_ref_tick() {
+            decrement_reference_count(&REF_TICK_STATE, |state| {
+                enable_ref_tick(state, false);
+                if let Some(selector) = state.current_selection {
+                    ref_tick_release_upstream(selector);
+                }
+            });
+        }
+        fn enable_ref_tick(state: &mut RefTickConfigState, enable: bool) {
+            _ = state;
+            enable_ref_tick_impl(enable)
+        }
+        fn enable_ref_tick_impl(_: bool) {
+            todo!(
+                "This function needs to be implemented by the HAL. This is just a placeholder to \
+                 make the generated code build."
+            )
+        }
+        #[doc = " Configures the `REF_TICK_XTAL` clock divider."]
+        #[doc = ""]
+        #[doc = " The output is calculated as `OUTPUT = APB_CLK / (DIVISOR + 1)`."]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+        pub struct RefTickXtalConfig(u32);
+        impl RefTickXtalConfig {
+            #[doc = r" Creates a new divider configuration."]
+            #[doc = ""]
+            #[doc = " # Panics"]
+            #[doc = ""]
+            #[doc = " Panics if the output frequency value is outside the"]
+            #[doc = " valid range (0 ..= 255)."]
+            pub const fn new(divisor: u32) -> Self {
+                ::core::assert!(
+                    divisor >= 0u32 && divisor <= 255u32,
+                    "`REF_TICK_XTAL` divisor value must be between 0 and 255 (inclusive)."
+                );
+                Self(divisor)
+            }
+        }
+        static REF_TICK_XTAL_STATE: ::esp_sync::NonReentrantMutex<RefcountState> =
+            ::esp_sync::NonReentrantMutex::new(RefcountState { refcount: 0 });
+        pub fn apply_ref_tick_xtal(config: &RefTickXtalConfig) {
+            todo!()
+        }
+        pub fn request_ref_tick_xtal() {
+            increment_reference_count(&REF_TICK_XTAL_STATE, |state| {
+                request_apb_clk();
+                enable_ref_tick_xtal(state, true);
+            });
+        }
+        pub fn release_ref_tick_xtal() {
+            decrement_reference_count(&REF_TICK_XTAL_STATE, |state| {
+                enable_ref_tick_xtal(state, false);
+                release_apb_clk();
+            });
+        }
+        fn enable_ref_tick_xtal(state: &mut RefcountState, enable: bool) {
+            _ = state;
+            enable_ref_tick_xtal_impl(enable)
+        }
+        fn enable_ref_tick_xtal_impl(_: bool) {
+            todo!(
+                "This function needs to be implemented by the HAL. This is just a placeholder to \
+                 make the generated code build."
+            )
+        }
+        #[doc = " Configures the `REF_TICK_FOSC` clock divider."]
+        #[doc = ""]
+        #[doc = " The output is calculated as `OUTPUT = APB_CLK / (DIVISOR + 1)`."]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+        pub struct RefTickFoscConfig(u32);
+        impl RefTickFoscConfig {
+            #[doc = r" Creates a new divider configuration."]
+            #[doc = ""]
+            #[doc = " # Panics"]
+            #[doc = ""]
+            #[doc = " Panics if the output frequency value is outside the"]
+            #[doc = " valid range (0 ..= 255)."]
+            pub const fn new(divisor: u32) -> Self {
+                ::core::assert!(
+                    divisor >= 0u32 && divisor <= 255u32,
+                    "`REF_TICK_FOSC` divisor value must be between 0 and 255 (inclusive)."
+                );
+                Self(divisor)
+            }
+        }
+        static REF_TICK_FOSC_STATE: ::esp_sync::NonReentrantMutex<RefcountState> =
+            ::esp_sync::NonReentrantMutex::new(RefcountState { refcount: 0 });
+        pub fn apply_ref_tick_fosc(config: &RefTickFoscConfig) {
+            todo!()
+        }
+        pub fn request_ref_tick_fosc() {
+            increment_reference_count(&REF_TICK_FOSC_STATE, |state| {
+                request_apb_clk();
+                enable_ref_tick_fosc(state, true);
+            });
+        }
+        pub fn release_ref_tick_fosc() {
+            decrement_reference_count(&REF_TICK_FOSC_STATE, |state| {
+                enable_ref_tick_fosc(state, false);
+                release_apb_clk();
+            });
+        }
+        fn enable_ref_tick_fosc(state: &mut RefcountState, enable: bool) {
+            _ = state;
+            enable_ref_tick_fosc_impl(enable)
+        }
+        fn enable_ref_tick_fosc_impl(_: bool) {
+            todo!(
+                "This function needs to be implemented by the HAL. This is just a placeholder to \
+                 make the generated code build."
+            )
+        }
+        #[doc = " Configures the `REF_TICK_APLL` clock divider."]
+        #[doc = ""]
+        #[doc = " The output is calculated as `OUTPUT = APB_CLK / (DIVISOR + 1)`."]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+        pub struct RefTickApllConfig(u32);
+        impl RefTickApllConfig {
+            #[doc = r" Creates a new divider configuration."]
+            #[doc = ""]
+            #[doc = " # Panics"]
+            #[doc = ""]
+            #[doc = " Panics if the output frequency value is outside the"]
+            #[doc = " valid range (0 ..= 255)."]
+            pub const fn new(divisor: u32) -> Self {
+                ::core::assert!(
+                    divisor >= 0u32 && divisor <= 255u32,
+                    "`REF_TICK_APLL` divisor value must be between 0 and 255 (inclusive)."
+                );
+                Self(divisor)
+            }
+        }
+        static REF_TICK_APLL_STATE: ::esp_sync::NonReentrantMutex<RefcountState> =
+            ::esp_sync::NonReentrantMutex::new(RefcountState { refcount: 0 });
+        pub fn apply_ref_tick_apll(config: &RefTickApllConfig) {
+            todo!()
+        }
+        pub fn request_ref_tick_apll() {
+            increment_reference_count(&REF_TICK_APLL_STATE, |state| {
+                request_apb_clk();
+                enable_ref_tick_apll(state, true);
+            });
+        }
+        pub fn release_ref_tick_apll() {
+            decrement_reference_count(&REF_TICK_APLL_STATE, |state| {
+                enable_ref_tick_apll(state, false);
+                release_apb_clk();
+            });
+        }
+        fn enable_ref_tick_apll(state: &mut RefcountState, enable: bool) {
+            _ = state;
+            enable_ref_tick_apll_impl(enable)
+        }
+        fn enable_ref_tick_apll_impl(_: bool) {
+            todo!(
+                "This function needs to be implemented by the HAL. This is just a placeholder to \
+                 make the generated code build."
+            )
+        }
+        #[doc = " Configures the `REF_TICK_PLL` clock divider."]
+        #[doc = ""]
+        #[doc = " The output is calculated as `OUTPUT = APB_CLK / (DIVISOR + 1)`."]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+        pub struct RefTickPllConfig(u32);
+        impl RefTickPllConfig {
+            #[doc = r" Creates a new divider configuration."]
+            #[doc = ""]
+            #[doc = " # Panics"]
+            #[doc = ""]
+            #[doc = " Panics if the output frequency value is outside the"]
+            #[doc = " valid range (0 ..= 255)."]
+            pub const fn new(divisor: u32) -> Self {
+                ::core::assert!(
+                    divisor >= 0u32 && divisor <= 255u32,
+                    "`REF_TICK_PLL` divisor value must be between 0 and 255 (inclusive)."
+                );
+                Self(divisor)
+            }
+        }
+        static REF_TICK_PLL_STATE: ::esp_sync::NonReentrantMutex<RefcountState> =
+            ::esp_sync::NonReentrantMutex::new(RefcountState { refcount: 0 });
+        pub fn apply_ref_tick_pll(config: &RefTickPllConfig) {
+            todo!()
+        }
+        pub fn request_ref_tick_pll() {
+            increment_reference_count(&REF_TICK_PLL_STATE, |state| {
+                request_apb_clk();
+                enable_ref_tick_pll(state, true);
+            });
+        }
+        pub fn release_ref_tick_pll() {
+            decrement_reference_count(&REF_TICK_PLL_STATE, |state| {
+                enable_ref_tick_pll(state, false);
+                release_apb_clk();
+            });
+        }
+        fn enable_ref_tick_pll(state: &mut RefcountState, enable: bool) {
+            _ = state;
+            enable_ref_tick_pll_impl(enable)
+        }
+        fn enable_ref_tick_pll_impl(_: bool) {
+            todo!(
+                "This function needs to be implemented by the HAL. This is just a placeholder to \
+                 make the generated code build."
+            )
+        }
+        #[doc = " The list of clock signals that the `CPU_CLK` multiplexer can output."]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+        pub enum CpuClkConfig {
+            #[doc = " Selects `SYSCON_PRE_DIV`."]
+            Xtal,
+            #[doc = " Selects `SYSCON_PRE_DIV`."]
+            RcFast,
+            #[doc = " Selects `CPU_PLL_DIV`."]
+            Apll,
+            #[doc = " Selects `CPU_PLL_DIV`."]
+            Pll,
+        }
+        struct CpuClkConfigState {
+            refcount: usize,
+            current_selection: Option<CpuClkConfig>,
+        }
+        impl CpuClkConfigState {
+            fn set_selector(&mut self, config: CpuClkConfig) -> Option<CpuClkConfig> {
+                self.current_selection.replace(config)
+            }
+        }
+        impl NodeState for CpuClkConfigState {
+            fn refcount(&mut self) -> &mut usize {
+                &mut self.refcount
+            }
+        }
+        static CPU_CLK_STATE: ::esp_sync::NonReentrantMutex<CpuClkConfigState> =
+            ::esp_sync::NonReentrantMutex::new(CpuClkConfigState {
+                refcount: 0,
+                current_selection: None,
+            });
+        pub fn apply_cpu_clk(config: &CpuClkConfig) {
+            let new_selector = *config;
+            CPU_CLK_STATE.with(|state| {
+                let old_selector = state.set_selector(new_selector);
+                todo!("Apply `configures` directives");
+                if state.refcount > 0 {
+                    cpu_clk_request_upstream(new_selector);
+                    apply_cpu_clk_impl(old_selector, new_selector);
+                    cpu_clk_release_upstream(new_selector);
+                } else {
+                    apply_cpu_clk_impl(old_selector, new_selector);
+                }
+            });
+        }
+        pub fn cpu_clk_request_upstream(selector: CpuClkConfig) {
+            match selector {
+                CpuClkConfig::Xtal => request_syscon_pre_div(),
+                CpuClkConfig::RcFast => request_syscon_pre_div(),
+                CpuClkConfig::Apll => request_cpu_pll_div(),
+                CpuClkConfig::Pll => request_cpu_pll_div(),
+            }
+        }
+        pub fn cpu_clk_release_upstream(selector: CpuClkConfig) {
+            match selector {
+                CpuClkConfig::Xtal => release_syscon_pre_div(),
+                CpuClkConfig::RcFast => release_syscon_pre_div(),
+                CpuClkConfig::Apll => release_cpu_pll_div(),
+                CpuClkConfig::Pll => release_cpu_pll_div(),
+            }
+        }
+        fn apply_cpu_clk_impl(old_selector: Option<CpuClkConfig>, new_selector: CpuClkConfig) {
+            todo!(
+                "This needs to be implemented by the HAL. This is just a placeholder to make the \
+                 generated code build."
+            )
+        }
+        pub fn request_cpu_clk() {
+            increment_reference_count(&CPU_CLK_STATE, |state| {
+                if let Some(selector) = state.current_selection {
+                    cpu_clk_request_upstream(selector);
+                }
+                enable_cpu_clk(state, true);
+            });
+        }
+        pub fn release_cpu_clk() {
+            decrement_reference_count(&CPU_CLK_STATE, |state| {
+                enable_cpu_clk(state, false);
+                if let Some(selector) = state.current_selection {
+                    cpu_clk_release_upstream(selector);
+                }
+            });
+        }
+        fn enable_cpu_clk(state: &mut CpuClkConfigState, enable: bool) {
+            _ = state;
+            enable_cpu_clk_impl(enable)
+        }
+        fn enable_cpu_clk_impl(_: bool) {
+            todo!(
+                "This function needs to be implemented by the HAL. This is just a placeholder to \
+                 make the generated code build."
+            )
+        }
+        static APB_CLK_CPU_DIV2_STATE: ::esp_sync::NonReentrantMutex<RefcountState> =
+            ::esp_sync::NonReentrantMutex::new(RefcountState { refcount: 0 });
+        pub fn request_apb_clk_cpu_div2() {
+            increment_reference_count(&APB_CLK_CPU_DIV2_STATE, |state| {
+                request_cpu_clk();
+                enable_apb_clk_cpu_div2_impl(true);
+            });
+        }
+        pub fn release_apb_clk_cpu_div2() {
+            decrement_reference_count(&APB_CLK_CPU_DIV2_STATE, |state| {
+                enable_apb_clk_cpu_div2_impl(false);
+                release_cpu_clk();
+            });
+        }
+        fn enable_apb_clk_cpu_div2_impl(_: bool) {
+            todo!(
+                "This function needs to be implemented by the HAL. This is just a placeholder to \
+                 make the generated code build."
+            )
+        }
+        static APB_CLK_80M_STATE: ::esp_sync::NonReentrantMutex<RefcountState> =
+            ::esp_sync::NonReentrantMutex::new(RefcountState { refcount: 0 });
+        pub fn request_apb_clk_80m() {
+            increment_reference_count(&APB_CLK_80M_STATE, |state| {
+                request_cpu_clk();
+                enable_apb_clk_80m_impl(true);
+            });
+        }
+        pub fn release_apb_clk_80m() {
+            decrement_reference_count(&APB_CLK_80M_STATE, |state| {
+                enable_apb_clk_80m_impl(false);
+                release_cpu_clk();
+            });
+        }
+        fn enable_apb_clk_80m_impl(_: bool) {
+            todo!(
+                "This function needs to be implemented by the HAL. This is just a placeholder to \
+                 make the generated code build."
+            )
+        }
+        static XTAL32K_XTAL_CLK_STATE: ::esp_sync::NonReentrantMutex<RefcountState> =
+            ::esp_sync::NonReentrantMutex::new(RefcountState { refcount: 0 });
+        pub fn request_xtal32k_xtal_clk() {
+            increment_reference_count(&XTAL32K_XTAL_CLK_STATE, |state| {
+                enable_xtal32k_xtal_clk_impl(true);
+            });
+        }
+        pub fn release_xtal32k_xtal_clk() {
+            decrement_reference_count(&XTAL32K_XTAL_CLK_STATE, |state| {
+                enable_xtal32k_xtal_clk_impl(false);
+            });
+        }
+        fn enable_xtal32k_xtal_clk_impl(_: bool) {
+            todo!(
+                "This function needs to be implemented by the HAL. This is just a placeholder to \
+                 make the generated code build."
+            )
+        }
+        static XTAL32K_OSC_CLK_STATE: ::esp_sync::NonReentrantMutex<RefcountState> =
+            ::esp_sync::NonReentrantMutex::new(RefcountState { refcount: 0 });
+        pub fn request_xtal32k_osc_clk() {
+            increment_reference_count(&XTAL32K_OSC_CLK_STATE, |state| {
+                enable_xtal32k_osc_clk_impl(true);
+            });
+        }
+        pub fn release_xtal32k_osc_clk() {
+            decrement_reference_count(&XTAL32K_OSC_CLK_STATE, |state| {
+                enable_xtal32k_osc_clk_impl(false);
+            });
+        }
+        fn enable_xtal32k_osc_clk_impl(_: bool) {
+            todo!(
+                "This function needs to be implemented by the HAL. This is just a placeholder to \
+                 make the generated code build."
+            )
+        }
+        #[doc = " The list of clock signals that the `XTAL32K_CLK` multiplexer can output."]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+        pub enum Xtal32kClkConfig {
+            #[doc = " Selects `XTAL32K_XTAL_CLK`."]
+            Xtal,
+            #[doc = " Selects `XTAL32K_OSC_CLK`."]
+            Osc,
+        }
+        struct Xtal32kClkConfigState {
+            refcount: usize,
+            current_selection: Option<Xtal32kClkConfig>,
+        }
+        impl Xtal32kClkConfigState {
+            fn set_selector(&mut self, config: Xtal32kClkConfig) -> Option<Xtal32kClkConfig> {
+                self.current_selection.replace(config)
+            }
+        }
+        impl NodeState for Xtal32kClkConfigState {
+            fn refcount(&mut self) -> &mut usize {
+                &mut self.refcount
+            }
+        }
+        static XTAL32K_CLK_STATE: ::esp_sync::NonReentrantMutex<Xtal32kClkConfigState> =
+            ::esp_sync::NonReentrantMutex::new(Xtal32kClkConfigState {
+                refcount: 0,
+                current_selection: None,
+            });
+        pub fn apply_xtal32k_clk(config: &Xtal32kClkConfig) {
+            let new_selector = *config;
+            XTAL32K_CLK_STATE.with(|state| {
+                let old_selector = state.set_selector(new_selector);
+                todo!("Apply `configures` directives");
+                if state.refcount > 0 {
+                    xtal32k_clk_request_upstream(new_selector);
+                    apply_xtal32k_clk_impl(old_selector, new_selector);
+                    xtal32k_clk_release_upstream(new_selector);
+                } else {
+                    apply_xtal32k_clk_impl(old_selector, new_selector);
+                }
+            });
+        }
+        pub fn xtal32k_clk_request_upstream(selector: Xtal32kClkConfig) {
+            match selector {
+                Xtal32kClkConfig::Xtal => request_xtal32k_xtal_clk(),
+                Xtal32kClkConfig::Osc => request_xtal32k_osc_clk(),
+            }
+        }
+        pub fn xtal32k_clk_release_upstream(selector: Xtal32kClkConfig) {
+            match selector {
+                Xtal32kClkConfig::Xtal => release_xtal32k_xtal_clk(),
+                Xtal32kClkConfig::Osc => release_xtal32k_osc_clk(),
+            }
+        }
+        fn apply_xtal32k_clk_impl(
+            old_selector: Option<Xtal32kClkConfig>,
+            new_selector: Xtal32kClkConfig,
+        ) {
+            todo!(
+                "This needs to be implemented by the HAL. This is just a placeholder to make the \
+                 generated code build."
+            )
+        }
+        pub fn request_xtal32k_clk() {
+            increment_reference_count(&XTAL32K_CLK_STATE, |state| {
+                if let Some(selector) = state.current_selection {
+                    xtal32k_clk_request_upstream(selector);
+                }
+                enable_xtal32k_clk(state, true);
+            });
+        }
+        pub fn release_xtal32k_clk() {
+            decrement_reference_count(&XTAL32K_CLK_STATE, |state| {
+                enable_xtal32k_clk(state, false);
+                if let Some(selector) = state.current_selection {
+                    xtal32k_clk_release_upstream(selector);
+                }
+            });
+        }
+        fn enable_xtal32k_clk(state: &mut Xtal32kClkConfigState, enable: bool) {
+            _ = state;
+            enable_xtal32k_clk_impl(enable)
+        }
+        fn enable_xtal32k_clk_impl(_: bool) {
+            todo!(
+                "This function needs to be implemented by the HAL. This is just a placeholder to \
+                 make the generated code build."
+            )
+        }
+        static RC_SLOW_CLK_STATE: ::esp_sync::NonReentrantMutex<RefcountState> =
+            ::esp_sync::NonReentrantMutex::new(RefcountState { refcount: 0 });
+        pub fn request_rc_slow_clk() {
+            increment_reference_count(&RC_SLOW_CLK_STATE, |state| {
+                enable_rc_slow_clk_impl(true);
+            });
+        }
+        pub fn release_rc_slow_clk() {
+            decrement_reference_count(&RC_SLOW_CLK_STATE, |state| {
+                enable_rc_slow_clk_impl(false);
+            });
+        }
+        fn enable_rc_slow_clk_impl(_: bool) {
+            todo!(
+                "This function needs to be implemented by the HAL. This is just a placeholder to \
+                 make the generated code build."
+            )
+        }
+        static RC_FAST_DIV_CLK_STATE: ::esp_sync::NonReentrantMutex<RefcountState> =
+            ::esp_sync::NonReentrantMutex::new(RefcountState { refcount: 0 });
+        pub fn request_rc_fast_div_clk() {
+            increment_reference_count(&RC_FAST_DIV_CLK_STATE, |state| {
+                request_rc_fast_clk();
+                enable_rc_fast_div_clk_impl(true);
+            });
+        }
+        pub fn release_rc_fast_div_clk() {
+            decrement_reference_count(&RC_FAST_DIV_CLK_STATE, |state| {
+                enable_rc_fast_div_clk_impl(false);
+                release_rc_fast_clk();
+            });
+        }
+        fn enable_rc_fast_div_clk_impl(_: bool) {
+            todo!(
+                "This function needs to be implemented by the HAL. This is just a placeholder to \
+                 make the generated code build."
+            )
+        }
+        static XTAL_DIV_CLK_STATE: ::esp_sync::NonReentrantMutex<RefcountState> =
+            ::esp_sync::NonReentrantMutex::new(RefcountState { refcount: 0 });
+        pub fn request_xtal_div_clk() {
+            increment_reference_count(&XTAL_DIV_CLK_STATE, |state| {
+                request_xtl_clk();
+                enable_xtal_div_clk_impl(true);
+            });
+        }
+        pub fn release_xtal_div_clk() {
+            decrement_reference_count(&XTAL_DIV_CLK_STATE, |state| {
+                enable_xtal_div_clk_impl(false);
+                release_xtl_clk();
+            });
+        }
+        fn enable_xtal_div_clk_impl(_: bool) {
+            todo!(
+                "This function needs to be implemented by the HAL. This is just a placeholder to \
+                 make the generated code build."
+            )
+        }
+        #[doc = " The list of clock signals that the `RTC_SLOW_CLK` multiplexer can output."]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+        pub enum RtcSlowClkConfig {
+            #[doc = " Selects `XTAL32K_CLK`."]
+            Xtal,
+            #[doc = " Selects `RC_SLOW_CLK`."]
+            RcSlow,
+            #[doc = " Selects `RC_FAST_DIV_CLK`."]
+            RcFast,
+        }
+        struct RtcSlowClkConfigState {
+            refcount: usize,
+            current_selection: Option<RtcSlowClkConfig>,
+        }
+        impl RtcSlowClkConfigState {
+            fn set_selector(&mut self, config: RtcSlowClkConfig) -> Option<RtcSlowClkConfig> {
+                self.current_selection.replace(config)
+            }
+        }
+        impl NodeState for RtcSlowClkConfigState {
+            fn refcount(&mut self) -> &mut usize {
+                &mut self.refcount
+            }
+        }
+        static RTC_SLOW_CLK_STATE: ::esp_sync::NonReentrantMutex<RtcSlowClkConfigState> =
+            ::esp_sync::NonReentrantMutex::new(RtcSlowClkConfigState {
+                refcount: 0,
+                current_selection: None,
+            });
+        pub fn apply_rtc_slow_clk(config: &RtcSlowClkConfig) {
+            let new_selector = *config;
+            RTC_SLOW_CLK_STATE.with(|state| {
+                let old_selector = state.set_selector(new_selector);
+                todo!("Apply `configures` directives");
+                if state.refcount > 0 {
+                    rtc_slow_clk_request_upstream(new_selector);
+                    apply_rtc_slow_clk_impl(old_selector, new_selector);
+                    rtc_slow_clk_release_upstream(new_selector);
+                } else {
+                    apply_rtc_slow_clk_impl(old_selector, new_selector);
+                }
+            });
+        }
+        pub fn rtc_slow_clk_request_upstream(selector: RtcSlowClkConfig) {
+            match selector {
+                RtcSlowClkConfig::Xtal => request_xtal32k_clk(),
+                RtcSlowClkConfig::RcSlow => request_rc_slow_clk(),
+                RtcSlowClkConfig::RcFast => request_rc_fast_div_clk(),
+            }
+        }
+        pub fn rtc_slow_clk_release_upstream(selector: RtcSlowClkConfig) {
+            match selector {
+                RtcSlowClkConfig::Xtal => release_xtal32k_clk(),
+                RtcSlowClkConfig::RcSlow => release_rc_slow_clk(),
+                RtcSlowClkConfig::RcFast => release_rc_fast_div_clk(),
+            }
+        }
+        fn apply_rtc_slow_clk_impl(
+            old_selector: Option<RtcSlowClkConfig>,
+            new_selector: RtcSlowClkConfig,
+        ) {
+            todo!(
+                "This needs to be implemented by the HAL. This is just a placeholder to make the \
+                 generated code build."
+            )
+        }
+        pub fn request_rtc_slow_clk() {
+            increment_reference_count(&RTC_SLOW_CLK_STATE, |state| {
+                if let Some(selector) = state.current_selection {
+                    rtc_slow_clk_request_upstream(selector);
+                }
+                enable_rtc_slow_clk(state, true);
+            });
+        }
+        pub fn release_rtc_slow_clk() {
+            decrement_reference_count(&RTC_SLOW_CLK_STATE, |state| {
+                enable_rtc_slow_clk(state, false);
+                if let Some(selector) = state.current_selection {
+                    rtc_slow_clk_release_upstream(selector);
+                }
+            });
+        }
+        fn enable_rtc_slow_clk(state: &mut RtcSlowClkConfigState, enable: bool) {
+            _ = state;
+            enable_rtc_slow_clk_impl(enable)
+        }
+        fn enable_rtc_slow_clk_impl(_: bool) {
+            todo!(
+                "This function needs to be implemented by the HAL. This is just a placeholder to \
+                 make the generated code build."
+            )
+        }
+        #[doc = " The list of clock signals that the `RTC_FAST_CLK` multiplexer can output."]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+        pub enum RtcFastClkConfig {
+            #[doc = " Selects `XTAL_DIV_CLK`."]
+            Xtal,
+            #[doc = " Selects `RC_FAST_CLK`."]
+            Rc,
+        }
+        struct RtcFastClkConfigState {
+            refcount: usize,
+            current_selection: Option<RtcFastClkConfig>,
+        }
+        impl RtcFastClkConfigState {
+            fn set_selector(&mut self, config: RtcFastClkConfig) -> Option<RtcFastClkConfig> {
+                self.current_selection.replace(config)
+            }
+        }
+        impl NodeState for RtcFastClkConfigState {
+            fn refcount(&mut self) -> &mut usize {
+                &mut self.refcount
+            }
+        }
+        static RTC_FAST_CLK_STATE: ::esp_sync::NonReentrantMutex<RtcFastClkConfigState> =
+            ::esp_sync::NonReentrantMutex::new(RtcFastClkConfigState {
+                refcount: 0,
+                current_selection: None,
+            });
+        pub fn apply_rtc_fast_clk(config: &RtcFastClkConfig) {
+            let new_selector = *config;
+            RTC_FAST_CLK_STATE.with(|state| {
+                let old_selector = state.set_selector(new_selector);
+                todo!("Apply `configures` directives");
+                if state.refcount > 0 {
+                    rtc_fast_clk_request_upstream(new_selector);
+                    apply_rtc_fast_clk_impl(old_selector, new_selector);
+                    rtc_fast_clk_release_upstream(new_selector);
+                } else {
+                    apply_rtc_fast_clk_impl(old_selector, new_selector);
+                }
+            });
+        }
+        pub fn rtc_fast_clk_request_upstream(selector: RtcFastClkConfig) {
+            match selector {
+                RtcFastClkConfig::Xtal => request_xtal_div_clk(),
+                RtcFastClkConfig::Rc => request_rc_fast_clk(),
+            }
+        }
+        pub fn rtc_fast_clk_release_upstream(selector: RtcFastClkConfig) {
+            match selector {
+                RtcFastClkConfig::Xtal => release_xtal_div_clk(),
+                RtcFastClkConfig::Rc => release_rc_fast_clk(),
+            }
+        }
+        fn apply_rtc_fast_clk_impl(
+            old_selector: Option<RtcFastClkConfig>,
+            new_selector: RtcFastClkConfig,
+        ) {
+            todo!(
+                "This needs to be implemented by the HAL. This is just a placeholder to make the \
+                 generated code build."
+            )
+        }
+        pub fn request_rtc_fast_clk() {
+            increment_reference_count(&RTC_FAST_CLK_STATE, |state| {
+                if let Some(selector) = state.current_selection {
+                    rtc_fast_clk_request_upstream(selector);
+                }
+                enable_rtc_fast_clk(state, true);
+            });
+        }
+        pub fn release_rtc_fast_clk() {
+            decrement_reference_count(&RTC_FAST_CLK_STATE, |state| {
+                enable_rtc_fast_clk(state, false);
+                if let Some(selector) = state.current_selection {
+                    rtc_fast_clk_release_upstream(selector);
+                }
+            });
+        }
+        fn enable_rtc_fast_clk(state: &mut RtcFastClkConfigState, enable: bool) {
+            _ = state;
+            enable_rtc_fast_clk_impl(enable)
+        }
+        fn enable_rtc_fast_clk_impl(_: bool) {
+            todo!(
+                "This function needs to be implemented by the HAL. This is just a placeholder to \
+                 make the generated code build."
+            )
+        }
+        #[doc = " The list of clock signals that the `LOW_POWER_CLK` multiplexer can output."]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+        pub enum LowPowerClkConfig {
+            #[doc = " Selects `XTL_CLK`."]
+            Xtal,
+            #[doc = " Selects `RC_FAST_CLK`."]
+            RcFast,
+            #[doc = " Selects `RC_SLOW_CLK`."]
+            RcSlow,
+            #[doc = " Selects `RTC_SLOW_CLK`."]
+            RtcSlow,
+        }
+        struct LowPowerClkConfigState {
+            refcount: usize,
+            current_selection: Option<LowPowerClkConfig>,
+        }
+        impl LowPowerClkConfigState {
+            fn set_selector(&mut self, config: LowPowerClkConfig) -> Option<LowPowerClkConfig> {
+                self.current_selection.replace(config)
+            }
+        }
+        impl NodeState for LowPowerClkConfigState {
+            fn refcount(&mut self) -> &mut usize {
+                &mut self.refcount
+            }
+        }
+        static LOW_POWER_CLK_STATE: ::esp_sync::NonReentrantMutex<LowPowerClkConfigState> =
+            ::esp_sync::NonReentrantMutex::new(LowPowerClkConfigState {
+                refcount: 0,
+                current_selection: None,
+            });
+        pub fn apply_low_power_clk(config: &LowPowerClkConfig) {
+            let new_selector = *config;
+            LOW_POWER_CLK_STATE.with(|state| {
+                let old_selector = state.set_selector(new_selector);
+                todo!("Apply `configures` directives");
+                if state.refcount > 0 {
+                    low_power_clk_request_upstream(new_selector);
+                    apply_low_power_clk_impl(old_selector, new_selector);
+                    low_power_clk_release_upstream(new_selector);
+                } else {
+                    apply_low_power_clk_impl(old_selector, new_selector);
+                }
+            });
+        }
+        pub fn low_power_clk_request_upstream(selector: LowPowerClkConfig) {
+            match selector {
+                LowPowerClkConfig::Xtal => request_xtl_clk(),
+                LowPowerClkConfig::RcFast => request_rc_fast_clk(),
+                LowPowerClkConfig::RcSlow => request_rc_slow_clk(),
+                LowPowerClkConfig::RtcSlow => request_rtc_slow_clk(),
+            }
+        }
+        pub fn low_power_clk_release_upstream(selector: LowPowerClkConfig) {
+            match selector {
+                LowPowerClkConfig::Xtal => release_xtl_clk(),
+                LowPowerClkConfig::RcFast => release_rc_fast_clk(),
+                LowPowerClkConfig::RcSlow => release_rc_slow_clk(),
+                LowPowerClkConfig::RtcSlow => release_rtc_slow_clk(),
+            }
+        }
+        fn apply_low_power_clk_impl(
+            old_selector: Option<LowPowerClkConfig>,
+            new_selector: LowPowerClkConfig,
+        ) {
+            todo!(
+                "This needs to be implemented by the HAL. This is just a placeholder to make the \
+                 generated code build."
+            )
+        }
+        pub fn request_low_power_clk() {
+            increment_reference_count(&LOW_POWER_CLK_STATE, |state| {
+                if let Some(selector) = state.current_selection {
+                    low_power_clk_request_upstream(selector);
+                }
+                enable_low_power_clk(state, true);
+            });
+        }
+        pub fn release_low_power_clk() {
+            decrement_reference_count(&LOW_POWER_CLK_STATE, |state| {
+                enable_low_power_clk(state, false);
+                if let Some(selector) = state.current_selection {
+                    low_power_clk_release_upstream(selector);
+                }
+            });
+        }
+        fn enable_low_power_clk(state: &mut LowPowerClkConfigState, enable: bool) {
+            _ = state;
+            enable_low_power_clk_impl(enable)
+        }
+        fn enable_low_power_clk_impl(_: bool) {
+            todo!(
+                "This function needs to be implemented by the HAL. This is just a placeholder to \
+                 make the generated code build."
+            )
+        }
+        #[doc = r" Clock tree configuration."]
+        #[doc = r""]
+        #[doc = r" The fields of this struct are optional, with the following caveats:"]
+        #[doc = r" - If `XTL_CLK` is not specified, the crystal frequency will be"]
+        #[doc = r"   automatically detected if possible."]
+        #[doc = r" - The CPU and its upstream clock nodes will be set to a default configuration."]
+        #[doc = r" - Other unspecified clock sources will not be useable by peripherals."]
+        pub struct ClockConfig {
+            #[doc = " `XTL_CLK` configuration."]
+            xtl_clk: Option<XtlClkConfig>,
+            #[doc = " `PLL_CLK` configuration."]
+            pll_clk: Option<PllClkConfig>,
+            #[doc = " `APLL_CLK` configuration."]
+            apll_clk: Option<ApllClkConfig>,
+            #[doc = " `SYSCON_PRE_DIV` configuration."]
+            syscon_pre_div: Option<SysconPreDivConfig>,
+            #[doc = " `CPU_PLL_DIV` configuration."]
+            cpu_pll_div: Option<CpuPllDivConfig>,
+            #[doc = " `CPU_CLK` configuration."]
+            cpu_clk: Option<CpuClkConfig>,
+            #[doc = " `XTAL32K_CLK` configuration."]
+            xtal32k_clk: Option<Xtal32kClkConfig>,
+            #[doc = " `RTC_SLOW_CLK` configuration."]
+            rtc_slow_clk: Option<RtcSlowClkConfig>,
+            #[doc = " `RTC_FAST_CLK` configuration."]
+            rtc_fast_clk: Option<RtcFastClkConfig>,
+            #[doc = " `LOW_POWER_CLK` configuration."]
+            low_power_clk: Option<LowPowerClkConfig>,
+        }
+        fn apply_clock_config(config: &ClockConfig) {
+            if let Some(config) = config.xtl_clk.as_ref() {
+                apply_xtl_clk(config);
+            }
+            if let Some(config) = config.pll_clk.as_ref() {
+                apply_pll_clk(config);
+            }
+            if let Some(config) = config.apll_clk.as_ref() {
+                apply_apll_clk(config);
+            }
+            if let Some(config) = config.syscon_pre_div.as_ref() {
+                apply_syscon_pre_div(config);
+            }
+            if let Some(config) = config.cpu_pll_div.as_ref() {
+                apply_cpu_pll_div(config);
+            }
+            if let Some(config) = config.cpu_clk.as_ref() {
+                apply_cpu_clk(config);
+            }
+            if let Some(config) = config.xtal32k_clk.as_ref() {
+                apply_xtal32k_clk(config);
+            }
+            if let Some(config) = config.rtc_slow_clk.as_ref() {
+                apply_rtc_slow_clk(config);
+            }
+            if let Some(config) = config.rtc_fast_clk.as_ref() {
+                apply_rtc_fast_clk(config);
+            }
+            if let Some(config) = config.low_power_clk.as_ref() {
+                apply_low_power_clk(config);
+            }
+        }
+        #[doc = r" Simplifies refcounting."]
+        trait NodeState {
+            fn refcount(&mut self) -> &mut usize;
+        }
+        #[doc = r" State type for nodes that only need a reference count."]
+        struct RefcountState {
+            refcount: usize,
+        }
+        impl NodeState for RefcountState {
+            fn refcount(&mut self) -> &mut usize {
+                &mut self.refcount
+            }
+        }
+        fn increment_reference_count<S: NodeState>(
+            refcount: &::esp_sync::NonReentrantMutex<S>,
+            callback: impl FnOnce(&mut S),
+        ) {
+            refcount.with(|state| {
+                if *state.refcount() == 0 {
+                    callback(state);
+                }
+                *state.refcount() += 1;
+            })
+        }
+        fn decrement_reference_count<S: NodeState>(
+            refcount: &::esp_sync::NonReentrantMutex<S>,
+            callback: impl FnOnce(&mut S),
+        ) {
+            refcount.with(|state| {
+                *state.refcount() -= 1;
+                if *state.refcount() == 0 {
+                    callback(state);
+                }
+            })
+        }
+    };
+}
 /// Implement the `Peripheral` enum and enable/disable/reset functions.
 ///
 /// This macro is intended to be placed in `esp_hal::system`.
