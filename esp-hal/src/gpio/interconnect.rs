@@ -311,6 +311,12 @@ impl<'d> PeripheralOutput<'d> for OutputSignal<'d> {
     }
 }
 
+pub(crate) enum InputSignalConnection {
+    Pin(u8),
+    #[expect(dead_code)]
+    ConstantLevel(Level),
+}
+
 impl gpio::InputSignal {
     fn can_use_gpio_matrix(self) -> bool {
         self as usize <= property!("gpio.input_signal_max")
@@ -331,6 +337,29 @@ impl gpio::InputSignal {
     #[instability::unstable]
     pub fn connect_to<'a>(self, pin: &impl PeripheralSignal<'a>) {
         pin.connect_input_to_peripheral(self);
+    }
+
+    /// Returns which pin or constant level this signal is connected to.
+    ///
+    /// Returns `None` if the signal is not routed through the GPIO matrix.
+    pub(crate) fn connected_to(self) -> Option<InputSignalConnection> {
+        let offset = property!("gpio.func_in_sel_offset");
+        let reg = GPIO::regs().func_in_sel_cfg(self as usize - offset).read();
+
+        if reg.sel().bit_is_clear() {
+            // Not routed through GPIO matrix
+            return None;
+        }
+
+        match reg.in_sel().bits() {
+            property!("gpio.constant_0_input") => {
+                Some(InputSignalConnection::ConstantLevel(Level::Low))
+            }
+            property!("gpio.constant_1_input") => {
+                Some(InputSignalConnection::ConstantLevel(Level::High))
+            }
+            v => Some(InputSignalConnection::Pin(v)),
+        }
     }
 }
 

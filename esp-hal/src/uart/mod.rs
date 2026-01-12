@@ -59,13 +59,15 @@ use crate::{
     asynch::AtomicWaker,
     clock::Clocks,
     gpio::{
+        AnyPin,
         InputConfig,
         InputSignal,
+        Level,
         OutputConfig,
         OutputSignal,
         PinGuard,
         Pull,
-        interconnect::{PeripheralInput, PeripheralOutput},
+        interconnect::{InputSignalConnection, PeripheralInput, PeripheralOutput},
     },
     interrupt::InterruptHandler,
     pac::uart0::RegisterBlock,
@@ -1286,6 +1288,8 @@ where
             .set_rx_timeout(config.rx.timeout, self.uart.info().current_symbol_length())?;
 
         self.uart.info().rxfifo_reset();
+        self.uart.info().clear_rx_events(EnumSet::all());
+
         Ok(())
     }
 
@@ -3076,6 +3080,17 @@ impl Info {
     }
 
     fn apply_config(&self, config: &Config) -> Result<(), ConfigError> {
+        // Prevent glitches by disconnecting the RX pin to change potentially clock-related
+        // settings.
+        let rx_signal = self.rx_signal;
+        let signal = rx_signal.connected_to();
+        rx_signal.connect_to(&Level::High);
+        let _restore_rx_pin = OnDrop::new(|| {
+            if let Some(InputSignalConnection::Pin(pin)) = signal {
+                rx_signal.connect_to(&unsafe { AnyPin::steal(pin) });
+            }
+        });
+
         config.validate()?;
         self.change_baud(config)?;
         self.change_data_bits(config.data_bits);
