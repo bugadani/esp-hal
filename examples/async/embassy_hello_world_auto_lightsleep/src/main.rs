@@ -31,7 +31,14 @@ async fn main(spawner: Spawner) {
 
     let sw_int = SoftwareInterruptControl::new(peripherals.SW_INTERRUPT);
     let timg0 = TimerGroup::new(peripherals.TIMG0);
-    esp_rtos::start(timg0.timer0, sw_int.software_interrupt0);
+
+    let auto_light_sleep_hook = AutoLightSleep::default().enable(peripherals.RTC_CNTL);
+
+    esp_rtos::start_with_idle_hook(
+        timg0.timer0,
+        sw_int.software_interrupt0,
+        auto_light_sleep_hook,
+    );
 
     spawner.spawn(run()).ok();
 

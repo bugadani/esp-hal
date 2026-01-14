@@ -58,6 +58,8 @@ extern crate alloc;
 // MUST be the first module
 mod fmt;
 
+#[cfg(sleep)]
+mod auto_lightsleep;
 #[cfg(feature = "esp-radio")]
 mod esp_radio;
 mod run_queue;
@@ -75,6 +77,8 @@ pub mod embassy;
 
 use core::mem::MaybeUninit;
 
+#[cfg(sleep)]
+pub use auto_lightsleep::AutoLightSleep;
 #[cfg(feature = "alloc")]
 pub(crate) use esp_alloc::InternalMemory;
 #[cfg(systimer)]

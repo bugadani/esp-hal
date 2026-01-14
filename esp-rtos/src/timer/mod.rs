@@ -90,7 +90,7 @@ impl TimerQueue {
         self.queue.remove(task);
     }
 
-    fn next_wakeup(&self) -> u64 {
+    pub(crate) fn next_wakeup(&self) -> u64 {
         let mut wakeup_at = self.next_wakeup;
 
         for time_slice_target in self.time_slice_target.iter().copied() {
