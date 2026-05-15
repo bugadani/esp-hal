@@ -10,8 +10,9 @@
 //!
 //! Which `DMA_CHn` types are implemented follows device metadata (`dma_engine =
 //! "gdma"` peripherals), via `for_each_dma_channel!` from esp-metadata-generated
-//! (`GDMA`, …, `(rx, tx)` or `(peri)` IRQ tuples). Each channel row sets `interrupts.peri` for a
-//! single RX+TX ISR, or `interrupts.rx` / `interrupts.tx` when the PAC exposes separate lines.
+//! (same row shape as PDMA; GDMA rows use `family = Gdma`, `regs = ()`, and 1 or 2
+//! interrupt idents). Each channel row sets `interrupts.peri` for a single RX+TX ISR, or
+//! `interrupts.rx` / `interrupts.tx` when the PAC exposes separate lines.
 
 use core::marker::PhantomData;
 
@@ -237,14 +238,16 @@ const CHANNEL_COUNT: usize = cfg!(soc_has_dma_ch0) as usize
     + cfg!(soc_has_dma_ch3) as usize
     + cfg!(soc_has_dma_ch4) as usize;
 
-// `for_each_dma_channel!`: match `(GDMA, …)` arms before `(…, ($irq))` so split ISR tuples win
-// first.
 for_each_dma_channel! {
-    (GDMA, $instance:ident, $num:literal, ($rx_isr:ident, $tx_isr:ident)) => {
-        impl_channel!($num, $rx_isr, $tx_isr);
-    };
-    (GDMA, $instance:ident, $num:literal, ($irq:ident)) => {
-        impl_channel!($num, $irq);
+    (
+        $instance:ident,
+        $idx:literal,
+        $family:ident,
+        $regs:ty,
+        [ $($irq:ident),* $(,)? ],
+        [ $( ( $host:ident, $dma_variant:ident ) ),* $(,)? ],
+    ) => {
+        impl_channel!($idx, $($irq),*);
     };
 }
 

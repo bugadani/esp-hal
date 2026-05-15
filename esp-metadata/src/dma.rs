@@ -17,16 +17,15 @@ pub struct DmaUser {
     pub peripheral_id: u32,
 }
 
-/// Channel [`DmaEngine`] string: rows share [`for_each_dma_channel!`] with a leading `PDMA` /
-/// `GDMA` tag.
+/// Channel [`DmaEngine`] string (see [`DmaEngine::as_str`]); metadata rows appear in
+/// [`for_each_dma_channel!`] regardless of whether the chip uses GDMA or PDMA.
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(transparent)]
 pub struct DmaEngine(String);
 
 impl DmaEngine {
-    /// Lowercase engine id (same string as host [`DmaUser::engine`]). Rows feed
-    /// [`for_each_dma_channel!`] as `PDMA, …` or `GDMA, …` tuples (family/register block vs channel
-    /// index + IRQ group).
+    /// Lowercase engine id (same string as host [`DmaUser::engine`]). This feeds
+    /// [`for_each_dma_channel!`] rows (`Gdma` controller vs per-host engines such as `spi`).
     pub fn as_str(&self) -> &str {
         self.0.as_str()
     }
@@ -201,12 +200,13 @@ fn quote_dma_channel_row_pdma(
         let dma_var = peripheral_dma_variant_ident(host);
         quote! { (#host_ident, #dma_var) }
     });
+    // Unified row: channel index unused on PDMA (0); one PAC interrupt; non-empty host list.
     quote! {
-        PDMA,
         #instance_ty,
+        0,
         #channel_family,
         #regs,
-        #interrupt,
+        [ #interrupt ],
         [#(#pairs),*],
     }
 }
@@ -215,15 +215,30 @@ fn quote_dma_channel_row_gdma(peri: &PeripheralDef) -> TokenStream {
     let idx = gdma_channel_index(&peri.name).expect("GDMA peripheral names validated");
     let instance_ty = format_ident!("{}", peri.name.as_str());
     let num_tok = number(idx);
+    let gdma = format_ident!("Gdma");
     match parse_gdma_channel_interrupts(peri).expect("GDMA channel interrupts validated") {
         GdmaChannelIrqs::Peri(p) => {
             let irq = format_ident!("{}", p);
-            quote! { GDMA, #instance_ty, #num_tok, (#irq) }
+            quote! {
+                #instance_ty,
+                #num_tok,
+                #gdma,
+                (),
+                [ #irq ],
+                [],
+            }
         }
         GdmaChannelIrqs::RxTx { rx, tx } => {
             let rx_irq = format_ident!("{}", rx);
             let tx_irq = format_ident!("{}", tx);
-            quote! { GDMA, #instance_ty, #num_tok, (#rx_irq, #tx_irq) }
+            quote! {
+                #instance_ty,
+                #num_tok,
+                #gdma,
+                (),
+                [ #rx_irq, #tx_irq ],
+                [],
+            }
         }
     }
 }
@@ -412,7 +427,9 @@ pub(crate) fn validate(peripherals: &[PeripheralDef], peri_cfg: &PeriConfig) -> 
     Ok(())
 }
 
-/// Sorted `for_each_dma_channel!` row token streams (PDMA before GDMA, GDMA by channel index).
+/// Sorted `for_each_dma_channel!` row token streams (PDMA-declaration order first, then GDMA by
+/// channel index). Each row is
+/// `($instance, $index, $family, $regs, [ $($irq),* ], [ $(($host, $dma_variant)),* ])`.
 pub(crate) fn sorted_dma_channel_rows(peripherals: &[PeripheralDef]) -> Vec<TokenStream> {
     let mut dma_channel_entries: Vec<(DmaChannelMacroSort, TokenStream)> = Vec::new();
     let mut pdma_seq = 0u32;

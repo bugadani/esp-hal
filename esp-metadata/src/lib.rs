@@ -320,7 +320,7 @@ pub struct PeripheralDef {
 
     /// DMA channel / engine label: PDMA peripherals (`DMA_SPI2`, …) use ids matching hosts (`spi`,
     /// `i2s`, …); GDMA rows (`DMA_CH0`, …) use `"gdma"` plus [`PeripheralDef::interrupts`] (`peri`
-    /// or `rx`/`tx`). Codegen emits [`for_each_dma_channel!`] tuples prefixed by `PDMA` / `GDMA`.
+    /// or `rx`/`tx`). Codegen emits [`for_each_dma_channel!`] rows in a single shape for all chips.
     #[serde(default)]
     dma_engine: Option<DmaEngine>,
 }

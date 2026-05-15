@@ -68,7 +68,7 @@ pub trait PdmaChannel: crate::private::Sealed {
 }
 
 macro_rules! impl_pdma_channel {
-    ($peri:ident, $register_block:ident, $instance:ident, $int:ident, [$($compatible:ident),*]) => {
+    ($peri:ident, $register_block:ty, $instance:ident, $int:ident, [$($compatible:ident),*]) => {
         paste::paste! {
             use $crate::peripherals::[< $instance >];
             impl<'d> DmaChannel for $instance<'d> {
@@ -157,14 +157,14 @@ macro_rules! impl_pdma_channel {
 
 for_each_dma_channel! {
     (
-        PDMA,
         $instance:ident,
+        $idx:literal,
         $family:ident,
-        $regs:ident,
-        $interrupt:ident,
+        $regs:ty,
+        [ $irq:ident ],
         [ $( ( $host:ident, $dma_variant:ident ) ),* $(,)? ],
     ) => {
-        impl_pdma_channel!($family, $regs, $instance, $interrupt, [ $($dma_variant),* ]);
+        impl_pdma_channel!($family, $regs, $instance, $irq, [ $($dma_variant),* ]);
         $(
             $crate::dma::impl_dma_eligible!([$instance] $host => $dma_variant);
         )*
