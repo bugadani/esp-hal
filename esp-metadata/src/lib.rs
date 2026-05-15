@@ -1111,7 +1111,6 @@ This pin may be available with certain limitations. Check your hardware to make 
                 continue;
             }
 
-            let soc_cfg = format_ident!("{}", peri.symbol_name());
             let instance_ty = format_ident!("{}", peri.name.as_str());
 
             let Some(interrupt_name) = dma_engine_interrupt_name(peri) else {
@@ -1130,7 +1129,6 @@ This pin may be available with certain limitations. Check your hardware to make 
             });
 
             pdma_channels.push(quote! {
-                #soc_cfg,
                 #instance_ty,
                 #channel_family,
                 #regs,
@@ -1150,7 +1148,6 @@ This pin may be available with certain limitations. Check your hardware to make 
                 continue;
             }
             let idx = gdma_channel_index(&peri.name).expect("GDMA peripheral names validated");
-            let soc_cfg = format_ident!("{}", peri.symbol_name());
             let instance_ty = format_ident!("{}", peri.name.as_str());
             let num_tok = number(idx);
             let irq_row = match parse_gdma_channel_interrupts(peri)
@@ -1158,12 +1155,12 @@ This pin may be available with certain limitations. Check your hardware to make 
             {
                 GdmaChannelIrqs::Peri(p) => {
                     let irq = format_ident!("{}", p);
-                    quote! { #soc_cfg, #instance_ty, #num_tok, #irq }
+                    quote! { #instance_ty, #num_tok, #irq }
                 }
                 GdmaChannelIrqs::RxTx { rx, tx } => {
                     let rx_irq = format_ident!("{}", rx);
                     let tx_irq = format_ident!("{}", tx);
-                    quote! { #soc_cfg, #instance_ty, #num_tok, #rx_irq, #tx_irq }
+                    quote! { #instance_ty, #num_tok, #rx_irq, #tx_irq }
                 }
             };
             gdma_channel_rows.push((idx, irq_row));

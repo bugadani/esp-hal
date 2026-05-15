@@ -240,17 +240,11 @@ const CHANNEL_COUNT: usize = cfg!(soc_has_dma_ch0) as usize
 // Interrupt tokens (`Interrupt::…`) come from device metadata (`interrupts.peri` or `rx`/`tx`
 // on each `DMA_CHn` row); match the 5-tuple arm before the 4-tuple arm so split ISRs match first.
 for_each_gdma_channel! {
-    ($soc_cfg:ident, $_ch:ident, $num:literal, $rx_isr:ident, $tx_isr:ident) => {
-        #[cfg($soc_cfg)]
-        paste::paste! {
-            impl_channel!($num, $rx_isr, $tx_isr);
-        }
+    ($instance:ident, $num:literal, $rx_isr:ident, $tx_isr:ident) => {
+        impl_channel!($num, $rx_isr, $tx_isr);
     };
-    ($soc_cfg:ident, $_ch:ident, $num:literal, $irq:ident) => {
-        #[cfg($soc_cfg)]
-        paste::paste! {
-            impl_channel!($num, $irq);
-        }
+    ($instance:ident, $num:literal, $irq:ident) => {
+        impl_channel!($num, $irq);
     };
 }
 

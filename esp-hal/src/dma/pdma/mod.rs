@@ -157,14 +157,12 @@ macro_rules! impl_pdma_channel {
 
 for_each_pdma_channel! {
     (
-        $soc_cfg:ident,
         $instance:ident,
         $family:ident,
         $regs:ident,
         $interrupt:ident,
         [ $( ( $host:ident, $dma_variant:ident ) ),* $(,)? ],
     ) => {
-        #[cfg($soc_cfg)]
         paste::paste! {
             impl_pdma_channel!($family, $regs, $instance, $interrupt, [ $($dma_variant),* ]);
             $(

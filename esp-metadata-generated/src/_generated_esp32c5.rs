@@ -4396,13 +4396,11 @@ macro_rules! for_each_peripheral {
 macro_rules! for_each_gdma_channel {
     ($($pattern:tt => $code:tt;)*) => {
         macro_rules! _for_each_inner_gdma_channel { $(($pattern) => $code;)* ($other :
-        tt) => {} } _for_each_inner_gdma_channel!((soc_has_dma_ch0, DMA_CH0, 0,
-        DMA_IN_CH0, DMA_OUT_CH0)); _for_each_inner_gdma_channel!((soc_has_dma_ch1,
-        DMA_CH1, 1, DMA_IN_CH1, DMA_OUT_CH1));
-        _for_each_inner_gdma_channel!((soc_has_dma_ch2, DMA_CH2, 2, DMA_IN_CH2,
-        DMA_OUT_CH2)); _for_each_inner_gdma_channel!((all(soc_has_dma_ch0, DMA_CH0, 0,
-        DMA_IN_CH0, DMA_OUT_CH0), (soc_has_dma_ch1, DMA_CH1, 1, DMA_IN_CH1, DMA_OUT_CH1),
-        (soc_has_dma_ch2, DMA_CH2, 2, DMA_IN_CH2, DMA_OUT_CH2)));
+        tt) => {} } _for_each_inner_gdma_channel!((DMA_CH0, 0, DMA_IN_CH0, DMA_OUT_CH0));
+        _for_each_inner_gdma_channel!((DMA_CH1, 1, DMA_IN_CH1, DMA_OUT_CH1));
+        _for_each_inner_gdma_channel!((DMA_CH2, 2, DMA_IN_CH2, DMA_OUT_CH2));
+        _for_each_inner_gdma_channel!((all(DMA_CH0, 0, DMA_IN_CH0, DMA_OUT_CH0),
+        (DMA_CH1, 1, DMA_IN_CH1, DMA_OUT_CH1), (DMA_CH2, 2, DMA_IN_CH2, DMA_OUT_CH2)));
     };
 }
 /// This macro can be used to generate code for each `GPIOn` instance.

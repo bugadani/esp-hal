@@ -4208,17 +4208,15 @@ macro_rules! for_each_peripheral {
 macro_rules! for_each_pdma_channel {
     ($($pattern:tt => $code:tt;)*) => {
         macro_rules! _for_each_inner_pdma_channel { $(($pattern) => $code;)* ($other :
-        tt) => {} } _for_each_inner_pdma_channel!((soc_has_dma_spi2, DMA_SPI2, Spi,
-        SpiRegisterBlock, SPI2_DMA, [(SPI2, Spi2)],));
-        _for_each_inner_pdma_channel!((soc_has_dma_spi3, DMA_SPI3, Spi, SpiRegisterBlock,
-        SPI3_DMA, [(SPI3, Spi3)],)); _for_each_inner_pdma_channel!((soc_has_dma_i2s0,
-        DMA_I2S0, I2s, I2sRegisterBlock, I2S0, [(I2S0, I2s0)],));
-        _for_each_inner_pdma_channel!((soc_has_dma_i2s1, DMA_I2S1, I2s, I2sRegisterBlock,
-        I2S1, [(I2S1, I2s1)],)); _for_each_inner_pdma_channel!((all(soc_has_dma_spi2,
-        DMA_SPI2, Spi, SpiRegisterBlock, SPI2_DMA, [(SPI2, Spi2)],), (soc_has_dma_spi3,
-        DMA_SPI3, Spi, SpiRegisterBlock, SPI3_DMA, [(SPI3, Spi3)],), (soc_has_dma_i2s0,
-        DMA_I2S0, I2s, I2sRegisterBlock, I2S0, [(I2S0, I2s0)],), (soc_has_dma_i2s1,
-        DMA_I2S1, I2s, I2sRegisterBlock, I2S1, [(I2S1, I2s1)],)));
+        tt) => {} } _for_each_inner_pdma_channel!((DMA_SPI2, Spi, SpiRegisterBlock,
+        SPI2_DMA, [(SPI2, Spi2)],)); _for_each_inner_pdma_channel!((DMA_SPI3, Spi,
+        SpiRegisterBlock, SPI3_DMA, [(SPI3, Spi3)],));
+        _for_each_inner_pdma_channel!((DMA_I2S0, I2s, I2sRegisterBlock, I2S0, [(I2S0,
+        I2s0)],)); _for_each_inner_pdma_channel!((DMA_I2S1, I2s, I2sRegisterBlock, I2S1,
+        [(I2S1, I2s1)],)); _for_each_inner_pdma_channel!((all(DMA_SPI2, Spi,
+        SpiRegisterBlock, SPI2_DMA, [(SPI2, Spi2)],), (DMA_SPI3, Spi, SpiRegisterBlock,
+        SPI3_DMA, [(SPI3, Spi3)],), (DMA_I2S0, I2s, I2sRegisterBlock, I2S0, [(I2S0,
+        I2s0)],), (DMA_I2S1, I2s, I2sRegisterBlock, I2S1, [(I2S1, I2s1)],)));
     };
 }
 /// This macro can be used to generate code for each `GPIOn` instance.
