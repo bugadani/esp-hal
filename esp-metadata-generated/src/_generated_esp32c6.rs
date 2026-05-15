@@ -4763,10 +4763,16 @@ macro_rules! for_each_peripheral {
         "USB_DEVICE peripheral singleton"] USB_DEVICE <= USB_DEVICE(USB_DEVICE : {
         bind_peri_interrupt, enable_peri_interrupt, disable_peri_interrupt })
         (unstable))); _for_each_inner_peripheral!((@ peri_type #[doc =
-        "DMA_CH0 peripheral singleton"] DMA_CH0 <= virtual() (unstable)));
+        "DMA_CH0 peripheral singleton"] DMA_CH0 <= virtual(DMA_IN_CH0 : {
+        bind_rx_interrupt, enable_rx_interrupt, disable_rx_interrupt }, DMA_OUT_CH0 : {
+        bind_tx_interrupt, enable_tx_interrupt, disable_tx_interrupt }) (unstable)));
         _for_each_inner_peripheral!((@ peri_type #[doc = "DMA_CH1 peripheral singleton"]
-        DMA_CH1 <= virtual() (unstable))); _for_each_inner_peripheral!((@ peri_type #[doc
-        = "DMA_CH2 peripheral singleton"] DMA_CH2 <= virtual() (unstable)));
+        DMA_CH1 <= virtual(DMA_IN_CH1 : { bind_rx_interrupt, enable_rx_interrupt,
+        disable_rx_interrupt }, DMA_OUT_CH1 : { bind_tx_interrupt, enable_tx_interrupt,
+        disable_tx_interrupt }) (unstable))); _for_each_inner_peripheral!((@ peri_type
+        #[doc = "DMA_CH2 peripheral singleton"] DMA_CH2 <= virtual(DMA_IN_CH2 : {
+        bind_rx_interrupt, enable_rx_interrupt, disable_rx_interrupt }, DMA_OUT_CH2 : {
+        bind_tx_interrupt, enable_tx_interrupt, disable_tx_interrupt }) (unstable)));
         _for_each_inner_peripheral!((@ peri_type #[doc = "ADC1 peripheral singleton"]
         ADC1 <= virtual() (unstable))); _for_each_inner_peripheral!((@ peri_type #[doc =
         "BT peripheral singleton"] BT <= virtual(LP_TIMER : { bind_lp_timer_interrupt,
@@ -5131,11 +5137,17 @@ macro_rules! for_each_peripheral {
         "USB_DEVICE peripheral singleton"] USB_DEVICE <= USB_DEVICE(USB_DEVICE : {
         bind_peri_interrupt, enable_peri_interrupt, disable_peri_interrupt })
         (unstable)), (@ peri_type #[doc = "DMA_CH0 peripheral singleton"] DMA_CH0 <=
-        virtual() (unstable)), (@ peri_type #[doc = "DMA_CH1 peripheral singleton"]
-        DMA_CH1 <= virtual() (unstable)), (@ peri_type #[doc =
-        "DMA_CH2 peripheral singleton"] DMA_CH2 <= virtual() (unstable)), (@ peri_type
-        #[doc = "ADC1 peripheral singleton"] ADC1 <= virtual() (unstable)), (@ peri_type
-        #[doc = "BT peripheral singleton"] BT <= virtual(LP_TIMER : {
+        virtual(DMA_IN_CH0 : { bind_rx_interrupt, enable_rx_interrupt,
+        disable_rx_interrupt }, DMA_OUT_CH0 : { bind_tx_interrupt, enable_tx_interrupt,
+        disable_tx_interrupt }) (unstable)), (@ peri_type #[doc =
+        "DMA_CH1 peripheral singleton"] DMA_CH1 <= virtual(DMA_IN_CH1 : {
+        bind_rx_interrupt, enable_rx_interrupt, disable_rx_interrupt }, DMA_OUT_CH1 : {
+        bind_tx_interrupt, enable_tx_interrupt, disable_tx_interrupt }) (unstable)), (@
+        peri_type #[doc = "DMA_CH2 peripheral singleton"] DMA_CH2 <= virtual(DMA_IN_CH2 :
+        { bind_rx_interrupt, enable_rx_interrupt, disable_rx_interrupt }, DMA_OUT_CH2 : {
+        bind_tx_interrupt, enable_tx_interrupt, disable_tx_interrupt }) (unstable)), (@
+        peri_type #[doc = "ADC1 peripheral singleton"] ADC1 <= virtual() (unstable)), (@
+        peri_type #[doc = "BT peripheral singleton"] BT <= virtual(LP_TIMER : {
         bind_lp_timer_interrupt, enable_lp_timer_interrupt, disable_lp_timer_interrupt },
         BT_MAC : { bind_mac_interrupt, enable_mac_interrupt, disable_mac_interrupt })
         (unstable)), (@ peri_type #[doc = "FLASH peripheral singleton"] FLASH <=
@@ -5196,6 +5208,20 @@ macro_rules! for_each_peripheral {
         ParlIo, 9), (MEM2MEM3, Mem2mem3, 10), (MEM2MEM4, Mem2mem4, 11), (MEM2MEM5,
         Mem2mem5, 12), (MEM2MEM6, Mem2mem6, 13), (MEM2MEM7, Mem2mem7, 14), (MEM2MEM8,
         Mem2mem8, 15)));
+    };
+}
+#[macro_export]
+#[cfg_attr(docsrs, doc(cfg(feature = "_device-selected")))]
+macro_rules! for_each_gdma_channel {
+    ($($pattern:tt => $code:tt;)*) => {
+        macro_rules! _for_each_inner_gdma_channel { $(($pattern) => $code;)* ($other :
+        tt) => {} } _for_each_inner_gdma_channel!((soc_has_dma_ch0, DMA_CH0, 0,
+        DMA_IN_CH0, DMA_OUT_CH0)); _for_each_inner_gdma_channel!((soc_has_dma_ch1,
+        DMA_CH1, 1, DMA_IN_CH1, DMA_OUT_CH1));
+        _for_each_inner_gdma_channel!((soc_has_dma_ch2, DMA_CH2, 2, DMA_IN_CH2,
+        DMA_OUT_CH2)); _for_each_inner_gdma_channel!((all(soc_has_dma_ch0, DMA_CH0, 0,
+        DMA_IN_CH0, DMA_OUT_CH0), (soc_has_dma_ch1, DMA_CH1, 1, DMA_IN_CH1, DMA_OUT_CH1),
+        (soc_has_dma_ch2, DMA_CH2, 2, DMA_IN_CH2, DMA_OUT_CH2)));
     };
 }
 /// This macro can be used to generate code for each `GPIOn` instance.

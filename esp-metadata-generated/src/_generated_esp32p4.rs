@@ -3498,10 +3498,17 @@ macro_rules! for_each_peripheral {
         #[doc = "PSRAM peripheral singleton"] PSRAM <= virtual() (unstable)));
         _for_each_inner_peripheral!((@ peri_type #[doc = "DMA peripheral singleton"] DMA
         <= AHB_DMA() (unstable))); _for_each_inner_peripheral!((@ peri_type #[doc =
-        "DMA_CH0 peripheral singleton"] DMA_CH0 <= virtual() (unstable)));
+        "DMA_CH0 peripheral singleton"] DMA_CH0 <= virtual(AHB_PDMA_IN_CH0 : {
+        bind_rx_interrupt, enable_rx_interrupt, disable_rx_interrupt }, AHB_PDMA_OUT_CH0
+        : { bind_tx_interrupt, enable_tx_interrupt, disable_tx_interrupt }) (unstable)));
         _for_each_inner_peripheral!((@ peri_type #[doc = "DMA_CH1 peripheral singleton"]
-        DMA_CH1 <= virtual() (unstable))); _for_each_inner_peripheral!((@ peri_type #[doc
-        = "DMA_CH2 peripheral singleton"] DMA_CH2 <= virtual() (unstable)));
+        DMA_CH1 <= virtual(AHB_PDMA_IN_CH1 : { bind_rx_interrupt, enable_rx_interrupt,
+        disable_rx_interrupt }, AHB_PDMA_OUT_CH1 : { bind_tx_interrupt,
+        enable_tx_interrupt, disable_tx_interrupt }) (unstable)));
+        _for_each_inner_peripheral!((@ peri_type #[doc = "DMA_CH2 peripheral singleton"]
+        DMA_CH2 <= virtual(AHB_PDMA_IN_CH2 : { bind_rx_interrupt, enable_rx_interrupt,
+        disable_rx_interrupt }, AHB_PDMA_OUT_CH2 : { bind_tx_interrupt,
+        enable_tx_interrupt, disable_tx_interrupt }) (unstable)));
         _for_each_inner_peripheral!((@ peri_type #[doc =
         "USB_DEVICE peripheral singleton"] USB_DEVICE <= USB_DEVICE(USB_DEVICE : {
         bind_peri_interrupt, enable_peri_interrupt, disable_peri_interrupt })
@@ -3794,14 +3801,21 @@ macro_rules! for_each_peripheral {
         enable_peri_interrupt, disable_peri_interrupt }) (unstable)), (@ peri_type #[doc
         = "PSRAM peripheral singleton"] PSRAM <= virtual() (unstable)), (@ peri_type
         #[doc = "DMA peripheral singleton"] DMA <= AHB_DMA() (unstable)), (@ peri_type
-        #[doc = "DMA_CH0 peripheral singleton"] DMA_CH0 <= virtual() (unstable)), (@
-        peri_type #[doc = "DMA_CH1 peripheral singleton"] DMA_CH1 <= virtual()
-        (unstable)), (@ peri_type #[doc = "DMA_CH2 peripheral singleton"] DMA_CH2 <=
-        virtual() (unstable)), (@ peri_type #[doc = "USB_DEVICE peripheral singleton"]
-        USB_DEVICE <= USB_DEVICE(USB_DEVICE : { bind_peri_interrupt,
-        enable_peri_interrupt, disable_peri_interrupt }) (unstable)), (@ peri_type #[doc
-        = "SDHOST peripheral singleton"] SDHOST <= SDHOST() (unstable)), (@ peri_type
-        #[doc = "LEDC peripheral singleton"] LEDC <= LEDC(LEDC : { bind_peri_interrupt,
+        #[doc = "DMA_CH0 peripheral singleton"] DMA_CH0 <= virtual(AHB_PDMA_IN_CH0 : {
+        bind_rx_interrupt, enable_rx_interrupt, disable_rx_interrupt }, AHB_PDMA_OUT_CH0
+        : { bind_tx_interrupt, enable_tx_interrupt, disable_tx_interrupt }) (unstable)),
+        (@ peri_type #[doc = "DMA_CH1 peripheral singleton"] DMA_CH1 <=
+        virtual(AHB_PDMA_IN_CH1 : { bind_rx_interrupt, enable_rx_interrupt,
+        disable_rx_interrupt }, AHB_PDMA_OUT_CH1 : { bind_tx_interrupt,
+        enable_tx_interrupt, disable_tx_interrupt }) (unstable)), (@ peri_type #[doc =
+        "DMA_CH2 peripheral singleton"] DMA_CH2 <= virtual(AHB_PDMA_IN_CH2 : {
+        bind_rx_interrupt, enable_rx_interrupt, disable_rx_interrupt }, AHB_PDMA_OUT_CH2
+        : { bind_tx_interrupt, enable_tx_interrupt, disable_tx_interrupt }) (unstable)),
+        (@ peri_type #[doc = "USB_DEVICE peripheral singleton"] USB_DEVICE <=
+        USB_DEVICE(USB_DEVICE : { bind_peri_interrupt, enable_peri_interrupt,
+        disable_peri_interrupt }) (unstable)), (@ peri_type #[doc =
+        "SDHOST peripheral singleton"] SDHOST <= SDHOST() (unstable)), (@ peri_type #[doc
+        = "LEDC peripheral singleton"] LEDC <= LEDC(LEDC : { bind_peri_interrupt,
         enable_peri_interrupt, disable_peri_interrupt }) (unstable)), (@ peri_type #[doc
         = "MCPWM0 peripheral singleton"] MCPWM0 <= MCPWM0(PWM0 : { bind_peri_interrupt,
         enable_peri_interrupt, disable_peri_interrupt }) (unstable)), (@ peri_type #[doc
@@ -3846,6 +3860,22 @@ macro_rules! for_each_peripheral {
         (SW_INTERRUPT(unstable)), (CPU_CTRL(unstable))));
         _for_each_inner_peripheral!((dma_eligible(SPI2, Spi2, 1), (SPI3, Spi3, 2), (AES,
         Aes, 4), (SHA, Sha, 5)));
+    };
+}
+#[macro_export]
+#[cfg_attr(docsrs, doc(cfg(feature = "_device-selected")))]
+macro_rules! for_each_gdma_channel {
+    ($($pattern:tt => $code:tt;)*) => {
+        macro_rules! _for_each_inner_gdma_channel { $(($pattern) => $code;)* ($other :
+        tt) => {} } _for_each_inner_gdma_channel!((soc_has_dma_ch0, DMA_CH0, 0,
+        AHB_PDMA_IN_CH0, AHB_PDMA_OUT_CH0));
+        _for_each_inner_gdma_channel!((soc_has_dma_ch1, DMA_CH1, 1, AHB_PDMA_IN_CH1,
+        AHB_PDMA_OUT_CH1)); _for_each_inner_gdma_channel!((soc_has_dma_ch2, DMA_CH2, 2,
+        AHB_PDMA_IN_CH2, AHB_PDMA_OUT_CH2));
+        _for_each_inner_gdma_channel!((all(soc_has_dma_ch0, DMA_CH0, 0, AHB_PDMA_IN_CH0,
+        AHB_PDMA_OUT_CH0), (soc_has_dma_ch1, DMA_CH1, 1, AHB_PDMA_IN_CH1,
+        AHB_PDMA_OUT_CH1), (soc_has_dma_ch2, DMA_CH2, 2, AHB_PDMA_IN_CH2,
+        AHB_PDMA_OUT_CH2)));
     };
 }
 /// This macro can be used to generate code for each `GPIOn` instance.

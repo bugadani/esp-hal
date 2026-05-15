@@ -269,12 +269,12 @@ peripherals = [
     { name = "UART2", interrupts = { peri = "UART2" }, clock_group = "UART" },
     { name = "UART3", interrupts = { peri = "UART3" }, clock_group = "UART" },
     { name = "UART4", interrupts = { peri = "UART4" }, clock_group = "UART" },
-    { name = "SPI2", interrupts = { peri = "SPI2" }, dma_user = { engine = "GDMA", peripheral_id = 1 } },
+    { name = "SPI2", interrupts = { peri = "SPI2" }, dma_user = { engine = "gdma", peripheral_id = 1 } },
     # SPI3 has the same RegisterBlock layout as SPI2 but the PAC exposes it as
     # a distinct type. Map to SPI2 so the SPI master driver can reuse its
     # register accessors directly. Verified field-compatible against the
     # upstream esp32p4 PAC at the time of this port.
-    { name = "SPI3", pac = "SPI2", interrupts = { peri = "SPI3" }, dma_user = { engine = "GDMA", peripheral_id = 2 } },
+    { name = "SPI3", pac = "SPI2", interrupts = { peri = "SPI3" }, dma_user = { engine = "gdma", peripheral_id = 2 } },
     { name = "I2C0", interrupts = { peri = "I2C0" } },
     { name = "I2C1", interrupts = { peri = "I2C1" } },
     { name = "TWAI0", interrupts = { peri = "TWAI0" } },
@@ -284,9 +284,9 @@ peripherals = [
     # DMA: P4 has three DMA blocks; see [device.dma] below for the table.
     # esp-hal's `Dma` singleton needs the GDMA v2 layout, so map it to AHB_DMA.
     { name = "DMA", pac = "AHB_DMA" },
-    { name = "DMA_CH0", virtual = true },
-    { name = "DMA_CH1", virtual = true },
-    { name = "DMA_CH2", virtual = true },
+    { name = "DMA_CH0", virtual = true, dma_engine = "gdma", interrupts = { rx = "AHB_PDMA_IN_CH0", tx = "AHB_PDMA_OUT_CH0" } },
+    { name = "DMA_CH1", virtual = true, dma_engine = "gdma", interrupts = { rx = "AHB_PDMA_IN_CH1", tx = "AHB_PDMA_OUT_CH1" } },
+    { name = "DMA_CH2", virtual = true, dma_engine = "gdma", interrupts = { rx = "AHB_PDMA_IN_CH2", tx = "AHB_PDMA_OUT_CH2" } },
 
     { name = "USB_DEVICE", interrupts = { peri = "USB_DEVICE" } },
     { name = "SDHOST" },
@@ -299,8 +299,8 @@ peripherals = [
     { name = "PCNT", interrupts = { peri = "PCNT" } },
     { name = "RMT", interrupts = { peri = "RMT" } },
     { name = "ADC" },
-    { name = "AES", interrupts = { peri = "AES" }, dma_user = { engine = "GDMA", peripheral_id = 4 } },
-    { name = "SHA", interrupts = { peri = "SHA" }, dma_user = { engine = "GDMA", peripheral_id = 5 } },
+    { name = "AES", interrupts = { peri = "AES" }, dma_user = { engine = "gdma", peripheral_id = 4 } },
+    { name = "SHA", interrupts = { peri = "SHA" }, dma_user = { engine = "gdma", peripheral_id = 5 } },
     { name = "RSA", interrupts = { peri = "RSA" } },
     { name = "ECC", interrupts = { peri = "ECC" } },
 

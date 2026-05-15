@@ -291,10 +291,16 @@ pub struct PeripheralDef {
     /// Whether or not the peripheral has a PAC counterpart
     #[serde(default, rename = "virtual")]
     is_virtual: bool,
-    /// List of related interrupt signals
+    /// Related PAC interrupt names keyed by convention.
+    ///
+    /// For PDMA channel peripherals (`dma_engine` other than `"gdma"`), use `dma` or `peri`, etc.
+    /// For GDMA channel peripherals (`DMA_CHn` with `dma_engine = "gdma"`), use **`peri`** when
+    /// one interrupt covers both RX and TX, or **`rx`** and **`tx`** when the PAC has separate
+    /// ISRs.
     #[serde(default)]
     interrupts: IndexMap<String, String>,
-    /// Declares which DMA engine backs this peripheral (`GDMA` on GDMA SoCs, or a PDMA engine id matching the channel peripheral's `dma_engine` on PDMA SoCs) plus its DMA peripheral/mux id.
+    /// Declares which DMA engine backs this peripheral (`dma_engine` id: `gdma` on GDMA SoCs,
+    /// `spi` / `i2s` / … on PDMA).
     #[serde(default)]
     dma_user: Option<DmaUser>,
     /// Set to true to hide a peripheral from the Peripherals struct.
@@ -309,33 +315,33 @@ pub struct PeripheralDef {
     #[serde(default)]
     clock_group: Option<String>,
 
-    /// PDMA-backed DMA singleton (e.g. `DMA_SPI2`). `dma_engine` is a lowercase engine id (same as [`DmaUser::engine`]) selecting HAL types (`FooRegisterBlock`, `AnyFoo*`).
+    /// DMA channel peripheral and engine label: on PDMA (`DMA_SPI2`, …) use ids like `"spi"` /
+    /// `"i2s"` / `"crypto"` (same string as host [`DmaUser::engine`]; drives PDMA
+    /// [`for_each_pdma_channel!`] types such as `{Pascal}RegisterBlock`). On GDMA (`DMA_CH0`,
+    /// …) use `"gdma"` and set [`PeripheralDef::interrupts`] (`peri`, or `rx` + `tx`);
+    /// enumerated for `for_each_gdma_channel!` in esp-metadata-generated / esp-hal.
     #[serde(default)]
     dma_engine: Option<DmaEngine>,
 }
 
-/// Host DMA routing: [`DmaUser::engine`] names the controller (`GDMA` or a PDMA engine id such as `spi`, matching the channel peripheral's `dma_engine`); `peripheral_id` is the hardware selector.
+/// Host DMA routing: [`DmaUser::engine`] matches a channel peripheral's [`DmaEngine`] string
+/// (`gdma`, `spi`, …); `peripheral_id` is the hardware selector.
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct DmaUser {
     pub engine: String,
     pub peripheral_id: u32,
 }
 
-/// Synthetic engine key in [`DmaUser::engine`] (not a peripheral singleton).
-fn dma_user_synthetic_engine(engine: &str) -> bool {
-    engine.eq_ignore_ascii_case("GDMA")
-}
-
-/// `DMA_SPI2` → `SPI2`. Used to pair a PDMA channel singleton with its host when several channels share one engine id (`dma_engine` string).
+/// `DMA_SPI2` → `SPI2`. Used to pair a PDMA channel singleton with its host when several channels
+/// share one engine id (`dma_engine` string).
 fn pdma_channel_host_suffix(channel_name: &str) -> &str {
-    channel_name
-        .strip_prefix("DMA_")
-        .unwrap_or(channel_name)
+    channel_name.strip_prefix("DMA_").unwrap_or(channel_name)
 }
 
-/// Host peripherals served by this PDMA channel: same engine id (`dma_engine`) as [`DmaUser::engine`], and either the host name
-/// matches [`pdma_channel_host_suffix`] (e.g. `DMA_SPI2` ↔ `SPI2`) or, if no such host exists, every host with that family
-/// (e.g. `DMA_CRYPTO` ↔ `AES` + `SHA`).
+/// Host peripherals served by this PDMA channel: same engine id (`dma_engine`) as
+/// [`DmaUser::engine`], and either the host name matches [`pdma_channel_host_suffix`] (e.g.
+/// `DMA_SPI2` ↔ `SPI2`) or, if no such host exists, every host with that family (e.g. `DMA_CRYPTO`
+/// ↔ `AES` + `SHA`).
 fn dma_user_hosts_for_pdma_channel(
     peripherals: &[PeripheralDef],
     channel_peri: &PeripheralDef,
@@ -350,8 +356,7 @@ fn dma_user_hosts_for_pdma_channel(
         .iter()
         .filter(|p| {
             p.dma_user.as_ref().is_some_and(|u| {
-                !dma_user_synthetic_engine(&u.engine)
-                    && dma_engine_family_key(&u.engine).ok().as_deref() == Some(fam_key.as_str())
+                dma_engine_family_key(&u.engine).ok().as_deref() == Some(fam_key.as_str())
             })
         })
         .collect();
@@ -362,21 +367,26 @@ fn dma_user_hosts_for_pdma_channel(
         .filter(|p| p.name.eq_ignore_ascii_case(suffix))
         .collect();
 
-    let selected = if !exact.is_empty() { exact } else { family_hosts };
+    let selected = if !exact.is_empty() {
+        exact
+    } else {
+        family_hosts
+    };
 
     let mut hosts: Vec<String> = selected.iter().map(|p| p.name.clone()).collect();
     hosts.sort();
     hosts
 }
 
-/// PDMA channel engine id (`dma_engine = "spi"`). Host pairing uses this string and `DMA_<Host>` naming via [`dma_user_hosts_for_pdma_channel`].
+/// Channel [`DmaEngine`] string: PDMA ids drive [`for_each_pdma_channel!`]; `"gdma"` on `DMA_CH*`
+/// rows drives `for_each_gdma_channel!` in esp-hal.
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(transparent)]
 pub struct DmaEngine(String);
 
 impl DmaEngine {
-    /// Lowercase identifier (e.g. `spi`). Drives `{Pascal}RegisterBlock` and `{Pascal}Dma*` types emitted by PDMA
-    /// `impl_pdma_channel!` (e.g. `SpiDmaRxChannel`). Peripheral enums named `Any{Pascal}DmaChannel` are defined in HAL.
+    /// Lowercase engine id (same string as host [`DmaUser::engine`]). PDMA ids feed
+    /// [`for_each_pdma_channel!`]; `"gdma"` feeds `for_each_gdma_channel!`.
     pub fn as_str(&self) -> &str {
         self.0.as_str()
     }
@@ -396,7 +406,7 @@ fn dma_engine_interrupt_name(peri: &PeripheralDef) -> Option<&str> {
     None
 }
 
-/// Normalized engine id (`dma_engine` / [`DmaUser::engine`] on PDMA): trimmed, lowercase ASCII `[a-z0-9_]`.
+/// Normalized engine id (`dma_engine` / [`DmaUser::engine`]): trimmed, lowercase ASCII `[a-z0-9_]`.
 fn dma_engine_family_key(engine_family: &str) -> Result<String> {
     let trimmed = engine_family.trim();
     ensure!(!trimmed.is_empty(), "dma_engine must not be empty");
@@ -410,11 +420,79 @@ fn dma_engine_family_key(engine_family: &str) -> Result<String> {
     Ok(trimmed.to_ascii_lowercase())
 }
 
+fn chip_has_gdma_controller(peri_cfg: &PeriConfig) -> bool {
+    peri_cfg
+        .dma
+        .as_ref()
+        .is_some_and(|d| d.kind.eq_ignore_ascii_case("gdma"))
+}
+
+/// `DMA_CH0` → `0`. Required for peripherals with [`DmaEngine`] `"gdma"`.
+fn gdma_channel_index(peri_name: &str) -> Result<u32> {
+    let rest = peri_name.strip_prefix("DMA_CH").with_context(|| {
+        format!(
+            "{peri_name:?}: dma_engine \"gdma\" peripherals must be named DMA_CH followed by digits (e.g. DMA_CH0)",
+        )
+    })?;
+    let idx = rest
+        .parse::<u32>()
+        .with_context(|| format!("{peri_name:?}: expected numeric suffix after DMA_CH"))?;
+    Ok(idx)
+}
+
+/// GDMA `DMA_CHn` row: either one merged ISR (`Interrupt::…` name in **`peri`**) or separate
+/// **`rx`** / **`tx`** names.
+enum GdmaChannelIrqs<'a> {
+    Peri(&'a str),
+    RxTx { rx: &'a str, tx: &'a str },
+}
+
+fn parse_gdma_channel_interrupts(peri: &PeripheralDef) -> Result<GdmaChannelIrqs<'_>> {
+    for k in peri.interrupts.keys() {
+        ensure!(
+            matches!(k.as_str(), "peri" | "rx" | "tx"),
+            "{}: dma_engine \"gdma\" channel `interrupts` keys must be only \"peri\", \"rx\", or \"tx\" (got {:?})",
+            peri.name,
+            k,
+        );
+    }
+    let peri_irq = peri.interrupts.get("peri").map(|s| s.as_str());
+    let rx = peri.interrupts.get("rx").map(|s| s.as_str());
+    let tx = peri.interrupts.get("tx").map(|s| s.as_str());
+    match (peri_irq, rx, tx) {
+        (Some(p), None, None) => {
+            ensure!(
+                !p.is_empty(),
+                "{}: interrupts.peri must not be empty",
+                peri.name,
+            );
+            Ok(GdmaChannelIrqs::Peri(p))
+        }
+        (None, Some(r), Some(t)) => {
+            ensure!(
+                !r.is_empty() && !t.is_empty(),
+                "{}: interrupts.rx and interrupts.tx must not be empty",
+                peri.name,
+            );
+            Ok(GdmaChannelIrqs::RxTx { rx: r, tx: t })
+        }
+        (Some(_), Some(_), _) | (Some(_), _, Some(_)) => bail!(
+            "{}: use either interrupts.peri alone or interrupts.rx + interrupts.tx, not both",
+            peri.name,
+        ),
+        _ => bail!(
+            "{}: dma_engine \"gdma\" requires interrupts.peri (single channel ISR) or interrupts.rx + interrupts.tx (split RX/TX ISRs)",
+            peri.name,
+        ),
+    }
+}
+
 /// One lowercase segment of `_`-split engine id → Pascal fragment (`i2s` → `I2s`).
 fn dma_engine_family_segment_pascal(seg: &str) -> Result<String> {
     ensure!(!seg.is_empty(), "dma_engine has an empty '_' segment");
     ensure!(
-        seg.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit()),
+        seg.chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit()),
         "{seg:?}: dma_engine segments must be lowercase ASCII after normalization",
     );
 
@@ -433,7 +511,10 @@ fn dma_engine_family_segment_pascal(seg: &str) -> Result<String> {
         if c.is_ascii_alphabetic() {
             out.push(c);
         } else {
-            ensure!(c.is_ascii_digit(), "{seg:?}: invalid character after normalization");
+            ensure!(
+                c.is_ascii_digit(),
+                "{seg:?}: invalid character after normalization"
+            );
             out.push(c);
         }
     }
@@ -554,15 +635,30 @@ impl Config {
             let Some(u) = &p.dma_user else {
                 continue;
             };
-            if dma_user_synthetic_engine(&u.engine) {
-                continue;
-            }
             let fk = dma_engine_family_key(&u.engine).with_context(|| {
                 format!(
-                    "{}: dma_user.engine {:?} must be \"GDMA\" or a valid dma_engine value (ASCII letters, digits, underscores; normalized to lowercase)",
+                    "{}: dma_user.engine {:?} must be a valid dma_engine id (ASCII letters, digits, underscores; normalized to lowercase)",
                     p.name, u.engine
                 )
             })?;
+
+            if fk == "gdma" {
+                if chip_has_gdma_controller(&self.device.peri_config) {
+                    let has_channel = peri_list.iter().any(|c| {
+                        c.dma_engine.as_ref().is_some_and(|e| {
+                            dma_engine_family_key(e.as_str()).ok().as_deref() == Some("gdma")
+                        })
+                    });
+                    ensure!(
+                        has_channel,
+                        "{}: dma_user.engine {:?} requires at least one peripheral with dma_engine = \"gdma\" (e.g. DMA_CH0)",
+                        p.name,
+                        u.engine,
+                    );
+                }
+                continue;
+            }
+
             let accepting: Vec<&str> = peri_list
                 .iter()
                 .filter(|c| {
@@ -590,6 +686,30 @@ impl Config {
                 continue;
             };
             let fam_key = dma_engine_family_key(engine.as_str())?;
+
+            if fam_key == "gdma" {
+                gdma_channel_index(&p.name)?;
+                ensure!(
+                    chip_has_gdma_controller(&self.device.peri_config),
+                    "{}: dma_engine = {:?} is only valid when [device.dma].kind is \"gdma\"",
+                    p.name,
+                    engine.as_str(),
+                );
+                let has_any_gdma_host = peri_list.iter().any(|x| {
+                    x.dma_user.as_ref().is_some_and(|u| {
+                        dma_engine_family_key(&u.engine).ok().as_deref() == Some("gdma")
+                    })
+                });
+                ensure!(
+                    has_any_gdma_host,
+                    "{}: dma_engine = {:?} but no peripheral has dma_user.engine \"gdma\"",
+                    p.name,
+                    engine.as_str(),
+                );
+                parse_gdma_channel_interrupts(p)?;
+                continue;
+            }
+
             let _ = dma_engine_family_pascal(&fam_key)?;
 
             ensure!(
@@ -605,6 +725,25 @@ impl Config {
                 p.name,
                 engine.as_str(),
             );
+        }
+
+        let mut seen_gdma_ch_idx = IndexMap::<u32, String>::new();
+        for p in peri_list.iter() {
+            let Some(engine) = &p.dma_engine else {
+                continue;
+            };
+            if dma_engine_family_key(engine.as_str()).ok().as_deref() != Some("gdma") {
+                continue;
+            }
+            let idx = gdma_channel_index(&p.name)?;
+            ensure!(
+                !seen_gdma_ch_idx.contains_key(&idx),
+                "duplicate dma_engine \"gdma\" channel index {} ({} conflicts with {:?})",
+                idx,
+                p.name,
+                seen_gdma_ch_idx.get(&idx)
+            );
+            seen_gdma_ch_idx.insert(idx, p.name.clone());
         }
 
         Ok(())
@@ -966,6 +1105,12 @@ This pin may be available with certain limitations. Check your hardware to make 
             let Some(engine) = &peri.dma_engine else {
                 continue;
             };
+            let fam_key = dma_engine_family_key(engine.as_str())
+                .expect("dma_engine should be valid (run Config::validate)");
+            if fam_key == "gdma" {
+                continue;
+            }
+
             let soc_cfg = format_ident!("{}", peri.symbol_name());
             let instance_ty = format_ident!("{}", peri.name.as_str());
 
@@ -973,8 +1118,6 @@ This pin may be available with certain limitations. Check your hardware to make 
                 unreachable!("dma_engine rows must pass Config::validate interrupt resolution");
             };
             let interrupt = format_ident!("{}", interrupt_name);
-            let fam_key = dma_engine_family_key(engine.as_str())
-                .expect("dma_engine should be valid (run Config::validate)");
             let pascal = dma_engine_family_pascal(&fam_key)
                 .expect("dma_engine should be valid (run Config::validate)");
             let channel_family = format_ident!("{pascal}");
@@ -996,6 +1139,38 @@ This pin may be available with certain limitations. Check your hardware to make 
             });
         }
 
+        let mut gdma_channel_rows = vec![];
+        for peri in self.peripherals().iter() {
+            let Some(engine) = &peri.dma_engine else {
+                continue;
+            };
+            let fam_key = dma_engine_family_key(engine.as_str())
+                .expect("dma_engine should be valid (run Config::validate)");
+            if fam_key != "gdma" {
+                continue;
+            }
+            let idx = gdma_channel_index(&peri.name).expect("GDMA peripheral names validated");
+            let soc_cfg = format_ident!("{}", peri.symbol_name());
+            let instance_ty = format_ident!("{}", peri.name.as_str());
+            let num_tok = number(idx);
+            let irq_row = match parse_gdma_channel_interrupts(peri)
+                .expect("GDMA channel interrupts validated")
+            {
+                GdmaChannelIrqs::Peri(p) => {
+                    let irq = format_ident!("{}", p);
+                    quote! { #soc_cfg, #instance_ty, #num_tok, #irq }
+                }
+                GdmaChannelIrqs::RxTx { rx, tx } => {
+                    let rx_irq = format_ident!("{}", rx);
+                    let tx_irq = format_ident!("{}", tx);
+                    quote! { #soc_cfg, #instance_ty, #num_tok, #rx_irq, #tx_irq }
+                }
+            };
+            gdma_channel_rows.push((idx, irq_row));
+        }
+        gdma_channel_rows.sort_by_key(|(idx, _)| *idx);
+        let gdma_channels: Vec<_> = gdma_channel_rows.into_iter().map(|(_, q)| q).collect();
+
         let peripheral_macros = generate_for_each_macro(
             "peripheral",
             &[
@@ -1009,10 +1184,16 @@ This pin may be available with certain limitations. Check your hardware to make 
         } else {
             generate_for_each_macro("pdma_channel", &[("all", &pdma_channels)])
         };
+        let gdma_macros = if gdma_channels.is_empty() {
+            quote! {}
+        } else {
+            generate_for_each_macro("gdma_channel", &[("all", &gdma_channels)])
+        };
 
         quote! {
             #peripheral_macros
             #pdma_macros
+            #gdma_macros
         }
     }
 

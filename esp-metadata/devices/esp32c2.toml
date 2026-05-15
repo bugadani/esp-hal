@@ -57,10 +57,10 @@ peripherals = [
     { name = "LPWR", pac = "RTC_CNTL" },
     { name = "MODEM_CLKRST" },
     { name = "SENSITIVE" },
-    { name = "SHA", interrupts = { peri = "SHA" }, dma_user = { engine = "GDMA", peripheral_id = 7 } },
+    { name = "SHA", interrupts = { peri = "SHA" }, dma_user = { engine = "gdma", peripheral_id = 7 } },
     { name = "SPI0" },
     { name = "SPI1" },
-    { name = "SPI2", interrupts = { peri = "SPI2" }, dma_user = { engine = "GDMA", peripheral_id = 0 }, stable = true },
+    { name = "SPI2", interrupts = { peri = "SPI2" }, dma_user = { engine = "gdma", peripheral_id = 0 }, stable = true },
     { name = "SYSTEM" },
     { name = "SYSTIMER" },
     { name = "TIMG0", clock_group = "TIMG" },
@@ -68,7 +68,7 @@ peripherals = [
     { name = "UART1", interrupts = { peri = "UART1" }, stable = true, clock_group = "UART" },
     { name = "XTS_AES" },
 
-    { name = "DMA_CH0", virtual = true },
+    { name = "DMA_CH0", virtual = true, dma_engine = "gdma", interrupts = { peri = "DMA_CH0" } },
 
     { name = "ADC1", virtual = true },
     { name = "BT", virtual = true, interrupts = { mac = "BT_MAC", lp_timer = "LP_TIMER" } },

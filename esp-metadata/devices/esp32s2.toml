@@ -81,7 +81,7 @@ peripherals = [
     { name = "TWAI0" },
     { name = "UART0", interrupts = { peri = "UART0" }, stable = true, clock_group = "UART" },
     { name = "UART1", interrupts = { peri = "UART1" }, stable = true, clock_group = "UART" },
-    { name = "UHCI0", dma_user = { engine = "GDMA", peripheral_id = 3 } },
+    { name = "UHCI0", dma_user = { engine = "gdma", peripheral_id = 3 } },
     { name = "USB0", interrupts = { peri = "USB" } },
     { name = "USB_WRAP" },
     { name = "XTS_AES" },

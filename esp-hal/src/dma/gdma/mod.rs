@@ -7,6 +7,11 @@
 //!
 //! The `GDMA` module provides multiple DMA channels, each capable of managing
 //! data transfer for various peripherals.
+//!
+//! Which `DMA_CHn` types are implemented follows device metadata (`dma_engine =
+//! "gdma"` peripherals), via the `for_each_gdma_channel!` macro from
+//! esp-metadata-generated. Each channel row sets `interrupts.peri` for a single RX+TX
+//! ISR, or `interrupts.rx` / `interrupts.tx` when the PAC exposes separate lines.
 
 use core::marker::PhantomData;
 
@@ -232,38 +237,21 @@ const CHANNEL_COUNT: usize = cfg!(soc_has_dma_ch0) as usize
     + cfg!(soc_has_dma_ch3) as usize
     + cfg!(soc_has_dma_ch4) as usize;
 
-cfg_if::cfg_if! {
-    // ESP32-P4: AHB_DMA interrupt names are AHB_PDMA_IN_CHn / AHB_PDMA_OUT_CHn
-    if #[cfg(esp32p4)] {
-        #[cfg(soc_has_dma_ch0)]
-        impl_channel!(0, AHB_PDMA_IN_CH0, AHB_PDMA_OUT_CH0);
-        #[cfg(soc_has_dma_ch1)]
-        impl_channel!(1, AHB_PDMA_IN_CH1, AHB_PDMA_OUT_CH1);
-        #[cfg(soc_has_dma_ch2)]
-        impl_channel!(2, AHB_PDMA_IN_CH2, AHB_PDMA_OUT_CH2);
-    } else if #[cfg(dma_separate_in_out_interrupts)] {
-        #[cfg(soc_has_dma_ch0)]
-        impl_channel!(0, DMA_IN_CH0, DMA_OUT_CH0);
-        #[cfg(soc_has_dma_ch1)]
-        impl_channel!(1, DMA_IN_CH1, DMA_OUT_CH1);
-        #[cfg(soc_has_dma_ch2)]
-        impl_channel!(2, DMA_IN_CH2, DMA_OUT_CH2);
-        #[cfg(soc_has_dma_ch3)]
-        impl_channel!(3, DMA_IN_CH3, DMA_OUT_CH3);
-        #[cfg(soc_has_dma_ch4)]
-        impl_channel!(4, DMA_IN_CH4, DMA_OUT_CH4);
-    } else {
-        #[cfg(soc_has_dma_ch0)]
-        impl_channel!(0, DMA_CH0);
-        #[cfg(soc_has_dma_ch1)]
-        impl_channel!(1, DMA_CH1);
-        #[cfg(soc_has_dma_ch2)]
-        impl_channel!(2, DMA_CH2);
-        #[cfg(soc_has_dma_ch3)]
-        impl_channel!(3, DMA_CH3);
-        #[cfg(soc_has_dma_ch4)]
-        impl_channel!(4, DMA_CH4);
-    }
+// Interrupt tokens (`Interrupt::…`) come from device metadata (`interrupts.peri` or `rx`/`tx`
+// on each `DMA_CHn` row); match the 5-tuple arm before the 4-tuple arm so split ISRs match first.
+for_each_gdma_channel! {
+    ($soc_cfg:ident, $_ch:ident, $num:literal, $rx_isr:ident, $tx_isr:ident) => {
+        #[cfg($soc_cfg)]
+        paste::paste! {
+            impl_channel!($num, $rx_isr, $tx_isr);
+        }
+    };
+    ($soc_cfg:ident, $_ch:ident, $num:literal, $irq:ident) => {
+        #[cfg($soc_cfg)]
+        paste::paste! {
+            impl_channel!($num, $irq);
+        }
+    };
 }
 
 for_each_peripheral! {
