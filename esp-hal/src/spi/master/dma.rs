@@ -1780,7 +1780,7 @@ impl<'d> DmaEligible for AnySpi<'d> {
     #[cfg(dma_kind = "gdma")]
     type Dma = crate::dma::AnyGdmaChannel<'d>;
     #[cfg(dma_kind = "pdma")]
-    type Dma = crate::dma::AnySpiDmaChannel<'d>;
+    type Dma = crate::dma::SpiDmaChannel<'d>;
 
     fn dma_peripheral(&self) -> crate::dma::DmaPeripheral {
         let (info, _state) = self.dma_parts();

@@ -25,35 +25,35 @@ use crate::{
 
 pub(super) type SpiRegisterBlock = crate::pac::spi2::RegisterBlock;
 
-/// The RX half of an arbitrary SPI DMA channel.
+/// The RX half of an SPI DMA channel.
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub struct AnySpiDmaRxChannel<'d>(pub(crate) AnySpiDmaChannel<'d>);
+pub struct SpiDmaRxChannel<'d>(pub(crate) AnySpiDmaChannel<'d>);
 
-impl AnySpiDmaRxChannel<'_> {
+impl SpiDmaRxChannel<'_> {
     fn regs(&self) -> &SpiRegisterBlock {
         self.0.register_block()
     }
 }
 
-impl crate::private::Sealed for AnySpiDmaRxChannel<'_> {}
-impl DmaRxChannel for AnySpiDmaRxChannel<'_> {}
+impl crate::private::Sealed for SpiDmaRxChannel<'_> {}
+impl DmaRxChannel for SpiDmaRxChannel<'_> {}
 
-/// The TX half of an arbitrary SPI DMA channel.
+/// The TX half of an SPI DMA channel.
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub struct AnySpiDmaTxChannel<'d>(pub(crate) AnySpiDmaChannel<'d>);
+pub struct SpiDmaTxChannel<'d>(pub(crate) AnySpiDmaChannel<'d>);
 
-impl AnySpiDmaTxChannel<'_> {
+impl SpiDmaTxChannel<'_> {
     fn regs(&self) -> &SpiRegisterBlock {
         self.0.register_block()
     }
 }
 
-impl crate::private::Sealed for AnySpiDmaTxChannel<'_> {}
-impl DmaTxChannel for AnySpiDmaTxChannel<'_> {}
+impl crate::private::Sealed for SpiDmaTxChannel<'_> {}
+impl DmaTxChannel for SpiDmaTxChannel<'_> {}
 
-impl RegisterAccess for AnySpiDmaTxChannel<'_> {
+impl RegisterAccess for SpiDmaTxChannel<'_> {
     fn peripheral_clock(&self) -> Option<Peripheral> {
         cfg_if::cfg_if! {
             if #[cfg(esp32)] {
@@ -134,7 +134,7 @@ impl RegisterAccess for AnySpiDmaTxChannel<'_> {
     }
 }
 
-impl TxRegisterAccess for AnySpiDmaTxChannel<'_> {
+impl TxRegisterAccess for SpiDmaTxChannel<'_> {
     fn is_fifo_empty(&self) -> bool {
         cfg_if::cfg_if! {
             if #[cfg(esp32)] {
@@ -167,7 +167,7 @@ impl TxRegisterAccess for AnySpiDmaTxChannel<'_> {
     }
 }
 
-impl InterruptAccess<DmaTxInterrupt> for AnySpiDmaTxChannel<'_> {
+impl InterruptAccess<DmaTxInterrupt> for SpiDmaTxChannel<'_> {
     fn enable_listen(&self, interrupts: EnumSet<DmaTxInterrupt>, enable: bool) {
         self.regs().dma_int_ena().modify(|_, w| {
             for interrupt in interrupts {
@@ -249,7 +249,7 @@ impl InterruptAccess<DmaTxInterrupt> for AnySpiDmaTxChannel<'_> {
     }
 }
 
-impl RegisterAccess for AnySpiDmaRxChannel<'_> {
+impl RegisterAccess for SpiDmaRxChannel<'_> {
     fn peripheral_clock(&self) -> Option<Peripheral> {
         cfg_if::cfg_if! {
             if #[cfg(esp32)] {
@@ -326,7 +326,7 @@ impl RegisterAccess for AnySpiDmaRxChannel<'_> {
     }
 }
 
-impl RxRegisterAccess for AnySpiDmaRxChannel<'_> {
+impl RxRegisterAccess for SpiDmaRxChannel<'_> {
     fn peripheral_interrupt(&self) -> Option<Interrupt> {
         Some(self.0.peripheral_interrupt())
     }
@@ -336,7 +336,7 @@ impl RxRegisterAccess for AnySpiDmaRxChannel<'_> {
     }
 }
 
-impl InterruptAccess<DmaRxInterrupt> for AnySpiDmaRxChannel<'_> {
+impl InterruptAccess<DmaRxInterrupt> for SpiDmaRxChannel<'_> {
     fn enable_listen(&self, interrupts: EnumSet<DmaRxInterrupt>, enable: bool) {
         self.regs().dma_int_ena().modify(|_, w| {
             for interrupt in interrupts {
@@ -427,21 +427,48 @@ impl InterruptAccess<DmaRxInterrupt> for AnySpiDmaRxChannel<'_> {
 }
 
 crate::any_peripheral! {
-    /// An SPI-compatible type-erased DMA channel.
+    /// Enumeration of available SPI PDMA channel singletons.
     pub peripheral AnySpiDmaChannel<'d> {
         Spi2(crate::peripherals::DMA_SPI2<'d>),
         Spi3(crate::peripherals::DMA_SPI3<'d>),
     }
 }
 
-impl<'d> DmaChannel for AnySpiDmaChannel<'d> {
-    type Rx = AnySpiDmaRxChannel<'d>;
-    type Tx = AnySpiDmaTxChannel<'d>;
+/// Erased SPI PDMA (`SpiDmaChannel`) for [`DmaChannel`] / [`DmaChannelConvert`].
+#[derive(Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub struct SpiDmaChannel<'d>(pub(crate) AnySpiDmaChannel<'d>);
+
+impl crate::private::Sealed for SpiDmaChannel<'_> {}
+
+impl<'d> From<AnySpiDmaChannel<'d>> for SpiDmaChannel<'d> {
+    fn from(inner: AnySpiDmaChannel<'d>) -> Self {
+        SpiDmaChannel(inner)
+    }
+}
+
+#[cfg(soc_has_dma_spi2)]
+impl<'d> From<crate::peripherals::DMA_SPI2<'d>> for SpiDmaChannel<'d> {
+    fn from(p: crate::peripherals::DMA_SPI2<'d>) -> Self {
+        SpiDmaChannel(p.into())
+    }
+}
+
+#[cfg(soc_has_dma_spi3)]
+impl<'d> From<crate::peripherals::DMA_SPI3<'d>> for SpiDmaChannel<'d> {
+    fn from(p: crate::peripherals::DMA_SPI3<'d>) -> Self {
+        SpiDmaChannel(p.into())
+    }
+}
+
+impl<'d> DmaChannel for SpiDmaChannel<'d> {
+    type Rx = SpiDmaRxChannel<'d>;
+    type Tx = SpiDmaTxChannel<'d>;
 
     unsafe fn split_internal(self, _: crate::private::Internal) -> (Self::Rx, Self::Tx) {
         (
-            AnySpiDmaRxChannel(unsafe { self.clone_unchecked() }),
-            AnySpiDmaTxChannel(unsafe { self.clone_unchecked() }),
+            SpiDmaRxChannel(unsafe { self.0.clone_unchecked() }),
+            SpiDmaTxChannel(unsafe { self.0.clone_unchecked() }),
         )
     }
 }
@@ -463,5 +490,33 @@ impl PdmaChannel for AnySpiDmaChannel<'_> {
             fn rx_async_flag(&self) -> &'static AtomicBool;
             fn tx_async_flag(&self) -> &'static AtomicBool;
         }
+    }
+}
+
+#[cfg(soc_has_dma_spi2)]
+impl<'d> From<crate::peripherals::DMA_SPI2<'d>> for SpiDmaRxChannel<'d> {
+    fn from(p: crate::peripherals::DMA_SPI2<'d>) -> Self {
+        Self(p.into())
+    }
+}
+
+#[cfg(soc_has_dma_spi3)]
+impl<'d> From<crate::peripherals::DMA_SPI3<'d>> for SpiDmaRxChannel<'d> {
+    fn from(p: crate::peripherals::DMA_SPI3<'d>) -> Self {
+        Self(p.into())
+    }
+}
+
+#[cfg(soc_has_dma_spi2)]
+impl<'d> From<crate::peripherals::DMA_SPI2<'d>> for SpiDmaTxChannel<'d> {
+    fn from(p: crate::peripherals::DMA_SPI2<'d>) -> Self {
+        Self(p.into())
+    }
+}
+
+#[cfg(soc_has_dma_spi3)]
+impl<'d> From<crate::peripherals::DMA_SPI3<'d>> for SpiDmaTxChannel<'d> {
+    fn from(p: crate::peripherals::DMA_SPI3<'d>) -> Self {
+        Self(p.into())
     }
 }

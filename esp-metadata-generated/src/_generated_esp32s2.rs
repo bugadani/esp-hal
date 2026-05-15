@@ -3948,12 +3948,16 @@ macro_rules! for_each_peripheral {
         WIFI <= WIFI(WIFI_MAC : { bind_mac_interrupt, enable_mac_interrupt,
         disable_mac_interrupt }, WIFI_PWR : { bind_pwr_interrupt, enable_pwr_interrupt,
         disable_pwr_interrupt }))); _for_each_inner_peripheral!((@ peri_type #[doc =
-        "DMA_SPI2 peripheral singleton"] DMA_SPI2 <= SPI2() (unstable)));
+        "DMA_SPI2 peripheral singleton"] DMA_SPI2 <= SPI2(SPI2_DMA : {
+        bind_dma_interrupt, enable_dma_interrupt, disable_dma_interrupt }) (unstable)));
         _for_each_inner_peripheral!((@ peri_type #[doc = "DMA_SPI3 peripheral singleton"]
-        DMA_SPI3 <= SPI3() (unstable))); _for_each_inner_peripheral!((@ peri_type #[doc =
-        "DMA_I2S0 peripheral singleton"] DMA_I2S0 <= I2S0() (unstable)));
+        DMA_SPI3 <= SPI3(SPI3_DMA : { bind_dma_interrupt, enable_dma_interrupt,
+        disable_dma_interrupt }) (unstable))); _for_each_inner_peripheral!((@ peri_type
+        #[doc = "DMA_I2S0 peripheral singleton"] DMA_I2S0 <= I2S0(I2S0 : {
+        bind_dma_interrupt, enable_dma_interrupt, disable_dma_interrupt }) (unstable)));
         _for_each_inner_peripheral!((@ peri_type #[doc =
-        "DMA_CRYPTO peripheral singleton"] DMA_CRYPTO <= CRYPTO_DMA() (unstable)));
+        "DMA_CRYPTO peripheral singleton"] DMA_CRYPTO <= CRYPTO_DMA(CRYPTO_DMA : {
+        bind_dma_interrupt, enable_dma_interrupt, disable_dma_interrupt }) (unstable)));
         _for_each_inner_peripheral!((@ peri_type #[doc = "DMA_COPY peripheral singleton"]
         DMA_COPY <= COPY_DMA() (unstable))); _for_each_inner_peripheral!((@ peri_type
         #[doc = "ADC1 peripheral singleton"] ADC1 <= virtual() (unstable)));
@@ -4284,11 +4288,15 @@ macro_rules! for_each_peripheral {
         peri_type #[doc = "WIFI peripheral singleton"] WIFI <= WIFI(WIFI_MAC : {
         bind_mac_interrupt, enable_mac_interrupt, disable_mac_interrupt }, WIFI_PWR : {
         bind_pwr_interrupt, enable_pwr_interrupt, disable_pwr_interrupt })), (@ peri_type
-        #[doc = "DMA_SPI2 peripheral singleton"] DMA_SPI2 <= SPI2() (unstable)), (@
-        peri_type #[doc = "DMA_SPI3 peripheral singleton"] DMA_SPI3 <= SPI3()
-        (unstable)), (@ peri_type #[doc = "DMA_I2S0 peripheral singleton"] DMA_I2S0 <=
-        I2S0() (unstable)), (@ peri_type #[doc = "DMA_CRYPTO peripheral singleton"]
-        DMA_CRYPTO <= CRYPTO_DMA() (unstable)), (@ peri_type #[doc =
+        #[doc = "DMA_SPI2 peripheral singleton"] DMA_SPI2 <= SPI2(SPI2_DMA : {
+        bind_dma_interrupt, enable_dma_interrupt, disable_dma_interrupt }) (unstable)),
+        (@ peri_type #[doc = "DMA_SPI3 peripheral singleton"] DMA_SPI3 <= SPI3(SPI3_DMA :
+        { bind_dma_interrupt, enable_dma_interrupt, disable_dma_interrupt }) (unstable)),
+        (@ peri_type #[doc = "DMA_I2S0 peripheral singleton"] DMA_I2S0 <= I2S0(I2S0 : {
+        bind_dma_interrupt, enable_dma_interrupt, disable_dma_interrupt }) (unstable)),
+        (@ peri_type #[doc = "DMA_CRYPTO peripheral singleton"] DMA_CRYPTO <=
+        CRYPTO_DMA(CRYPTO_DMA : { bind_dma_interrupt, enable_dma_interrupt,
+        disable_dma_interrupt }) (unstable)), (@ peri_type #[doc =
         "DMA_COPY peripheral singleton"] DMA_COPY <= COPY_DMA() (unstable)), (@ peri_type
         #[doc = "ADC1 peripheral singleton"] ADC1 <= virtual() (unstable)), (@ peri_type
         #[doc = "ADC2 peripheral singleton"] ADC2 <= virtual() (unstable)), (@ peri_type
@@ -4324,6 +4332,25 @@ macro_rules! for_each_peripheral {
         (ULP_RISCV_CORE(unstable)))); _for_each_inner_peripheral!((dma_eligible(I2S0,
         I2s0, 0), (SPI2, Spi2, 1), (SPI3, Spi3, 2), (UHCI0, Uhci0, 3), (AES, Aes, 4),
         (SHA, Sha, 5)));
+    };
+}
+#[macro_export]
+#[cfg_attr(docsrs, doc(cfg(feature = "_device-selected")))]
+macro_rules! for_each_pdma_channel {
+    ($($pattern:tt => $code:tt;)*) => {
+        macro_rules! _for_each_inner_pdma_channel { $(($pattern) => $code;)* ($other :
+        tt) => {} } _for_each_inner_pdma_channel!((soc_has_dma_spi2, DMA_SPI2, Spi,
+        SpiRegisterBlock, SPI2_DMA, [(SPI2, Spi2)],));
+        _for_each_inner_pdma_channel!((soc_has_dma_spi3, DMA_SPI3, Spi, SpiRegisterBlock,
+        SPI3_DMA, [(SPI3, Spi3)],)); _for_each_inner_pdma_channel!((soc_has_dma_i2s0,
+        DMA_I2S0, I2s, I2sRegisterBlock, I2S0, [(I2S0, I2s0)],));
+        _for_each_inner_pdma_channel!((soc_has_dma_crypto, DMA_CRYPTO, Crypto,
+        CryptoRegisterBlock, CRYPTO_DMA, [(AES, Aes), (SHA, Sha)],));
+        _for_each_inner_pdma_channel!((all(soc_has_dma_spi2, DMA_SPI2, Spi,
+        SpiRegisterBlock, SPI2_DMA, [(SPI2, Spi2)],), (soc_has_dma_spi3, DMA_SPI3, Spi,
+        SpiRegisterBlock, SPI3_DMA, [(SPI3, Spi3)],), (soc_has_dma_i2s0, DMA_I2S0, I2s,
+        I2sRegisterBlock, I2S0, [(I2S0, I2s0)],), (soc_has_dma_crypto, DMA_CRYPTO,
+        Crypto, CryptoRegisterBlock, CRYPTO_DMA, [(AES, Aes), (SHA, Sha)],)));
     };
 }
 /// This macro can be used to generate code for each `GPIOn` instance.

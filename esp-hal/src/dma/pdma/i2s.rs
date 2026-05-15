@@ -25,35 +25,35 @@ use crate::{
 
 pub(super) type I2sRegisterBlock = crate::pac::i2s0::RegisterBlock;
 
-/// The RX half of an arbitrary I2S DMA channel.
+/// The RX half of an I2S DMA channel.
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub struct AnyI2sDmaRxChannel<'d>(pub(crate) AnyI2sDmaChannel<'d>);
+pub struct I2sDmaRxChannel<'d>(pub(crate) AnyI2sDmaChannel<'d>);
 
-impl AnyI2sDmaRxChannel<'_> {
+impl I2sDmaRxChannel<'_> {
     fn regs(&self) -> &I2sRegisterBlock {
         self.0.register_block()
     }
 }
 
-impl crate::private::Sealed for AnyI2sDmaRxChannel<'_> {}
-impl DmaRxChannel for AnyI2sDmaRxChannel<'_> {}
+impl crate::private::Sealed for I2sDmaRxChannel<'_> {}
+impl DmaRxChannel for I2sDmaRxChannel<'_> {}
 
-/// The TX half of an arbitrary I2S DMA channel.
+/// The TX half of an I2S DMA channel.
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub struct AnyI2sDmaTxChannel<'d>(pub(crate) AnyI2sDmaChannel<'d>);
+pub struct I2sDmaTxChannel<'d>(pub(crate) AnyI2sDmaChannel<'d>);
 
-impl AnyI2sDmaTxChannel<'_> {
+impl I2sDmaTxChannel<'_> {
     fn regs(&self) -> &I2sRegisterBlock {
         self.0.register_block()
     }
 }
 
-impl crate::private::Sealed for AnyI2sDmaTxChannel<'_> {}
-impl DmaTxChannel for AnyI2sDmaTxChannel<'_> {}
+impl crate::private::Sealed for I2sDmaTxChannel<'_> {}
+impl DmaTxChannel for I2sDmaTxChannel<'_> {}
 
-impl RegisterAccess for AnyI2sDmaTxChannel<'_> {
+impl RegisterAccess for I2sDmaTxChannel<'_> {
     fn peripheral_clock(&self) -> Option<Peripheral> {
         None
     }
@@ -125,7 +125,7 @@ impl RegisterAccess for AnyI2sDmaTxChannel<'_> {
     }
 }
 
-impl TxRegisterAccess for AnyI2sDmaTxChannel<'_> {
+impl TxRegisterAccess for I2sDmaTxChannel<'_> {
     fn is_fifo_empty(&self) -> bool {
         cfg_if::cfg_if! {
             if #[cfg(esp32)] {
@@ -159,7 +159,7 @@ impl TxRegisterAccess for AnyI2sDmaTxChannel<'_> {
     }
 }
 
-impl InterruptAccess<DmaTxInterrupt> for AnyI2sDmaTxChannel<'_> {
+impl InterruptAccess<DmaTxInterrupt> for I2sDmaTxChannel<'_> {
     fn enable_listen(&self, interrupts: EnumSet<DmaTxInterrupt>, enable: bool) {
         self.regs().int_ena().modify(|_, w| {
             for interrupt in interrupts {
@@ -241,7 +241,7 @@ impl InterruptAccess<DmaTxInterrupt> for AnyI2sDmaTxChannel<'_> {
     }
 }
 
-impl RegisterAccess for AnyI2sDmaRxChannel<'_> {
+impl RegisterAccess for I2sDmaRxChannel<'_> {
     fn peripheral_clock(&self) -> Option<Peripheral> {
         None
     }
@@ -309,7 +309,7 @@ impl RegisterAccess for AnyI2sDmaRxChannel<'_> {
     }
 }
 
-impl RxRegisterAccess for AnyI2sDmaRxChannel<'_> {
+impl RxRegisterAccess for I2sDmaRxChannel<'_> {
     fn peripheral_interrupt(&self) -> Option<Interrupt> {
         Some(self.0.peripheral_interrupt())
     }
@@ -319,7 +319,7 @@ impl RxRegisterAccess for AnyI2sDmaRxChannel<'_> {
     }
 }
 
-impl InterruptAccess<DmaRxInterrupt> for AnyI2sDmaRxChannel<'_> {
+impl InterruptAccess<DmaRxInterrupt> for I2sDmaRxChannel<'_> {
     fn enable_listen(&self, interrupts: EnumSet<DmaRxInterrupt>, enable: bool) {
         self.regs().int_ena().modify(|_, w| {
             for interrupt in interrupts {
@@ -410,7 +410,7 @@ impl InterruptAccess<DmaRxInterrupt> for AnyI2sDmaRxChannel<'_> {
 }
 
 crate::any_peripheral! {
-    /// An I2S-compatible type-erased DMA channel.
+    /// Enumeration of available I²S PDMA channel singletons.
     pub peripheral AnyI2sDmaChannel<'d> {
         #[cfg(soc_has_i2s0)]
         I2s0(crate::peripherals::DMA_I2S0<'d>),
@@ -419,14 +419,41 @@ crate::any_peripheral! {
     }
 }
 
-impl<'d> DmaChannel for AnyI2sDmaChannel<'d> {
-    type Rx = AnyI2sDmaRxChannel<'d>;
-    type Tx = AnyI2sDmaTxChannel<'d>;
+/// Erased I²S PDMA (`I2sDmaChannel`) for [`DmaChannel`] / [`DmaChannelConvert`].
+#[derive(Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub struct I2sDmaChannel<'d>(pub(crate) AnyI2sDmaChannel<'d>);
+
+impl crate::private::Sealed for I2sDmaChannel<'_> {}
+
+impl<'d> From<AnyI2sDmaChannel<'d>> for I2sDmaChannel<'d> {
+    fn from(inner: AnyI2sDmaChannel<'d>) -> Self {
+        I2sDmaChannel(inner)
+    }
+}
+
+#[cfg(soc_has_i2s0)]
+impl<'d> From<crate::peripherals::DMA_I2S0<'d>> for I2sDmaChannel<'d> {
+    fn from(p: crate::peripherals::DMA_I2S0<'d>) -> Self {
+        I2sDmaChannel(p.into())
+    }
+}
+
+#[cfg(soc_has_i2s1)]
+impl<'d> From<crate::peripherals::DMA_I2S1<'d>> for I2sDmaChannel<'d> {
+    fn from(p: crate::peripherals::DMA_I2S1<'d>) -> Self {
+        I2sDmaChannel(p.into())
+    }
+}
+
+impl<'d> DmaChannel for I2sDmaChannel<'d> {
+    type Rx = I2sDmaRxChannel<'d>;
+    type Tx = I2sDmaTxChannel<'d>;
 
     unsafe fn split_internal(self, _: crate::private::Internal) -> (Self::Rx, Self::Tx) {
         (
-            AnyI2sDmaRxChannel(unsafe { self.clone_unchecked() }),
-            AnyI2sDmaTxChannel(unsafe { self.clone_unchecked() }),
+            I2sDmaRxChannel(unsafe { self.0.clone_unchecked() }),
+            I2sDmaTxChannel(unsafe { self.0.clone_unchecked() }),
         )
     }
 }
@@ -450,5 +477,33 @@ impl PdmaChannel for AnyI2sDmaChannel<'_> {
             fn rx_async_flag(&self) -> &'static AtomicBool;
             fn tx_async_flag(&self) -> &'static AtomicBool;
         }
+    }
+}
+
+#[cfg(soc_has_i2s0)]
+impl<'d> From<crate::peripherals::DMA_I2S0<'d>> for I2sDmaRxChannel<'d> {
+    fn from(p: crate::peripherals::DMA_I2S0<'d>) -> Self {
+        Self(p.into())
+    }
+}
+
+#[cfg(soc_has_i2s1)]
+impl<'d> From<crate::peripherals::DMA_I2S1<'d>> for I2sDmaRxChannel<'d> {
+    fn from(p: crate::peripherals::DMA_I2S1<'d>) -> Self {
+        Self(p.into())
+    }
+}
+
+#[cfg(soc_has_i2s0)]
+impl<'d> From<crate::peripherals::DMA_I2S0<'d>> for I2sDmaTxChannel<'d> {
+    fn from(p: crate::peripherals::DMA_I2S0<'d>) -> Self {
+        Self(p.into())
+    }
+}
+
+#[cfg(soc_has_i2s1)]
+impl<'d> From<crate::peripherals::DMA_I2S1<'d>> for I2sDmaTxChannel<'d> {
+    fn from(p: crate::peripherals::DMA_I2S1<'d>) -> Self {
+        Self(p.into())
     }
 }

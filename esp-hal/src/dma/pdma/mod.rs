@@ -44,11 +44,13 @@ mod spi;
 #[cfg(soc_has_dma_copy)]
 pub use copy::{CopyDmaRxChannel, CopyDmaTxChannel};
 #[cfg(soc_has_dma_crypto)]
-pub use crypto::{CryptoDmaRxChannel, CryptoDmaTxChannel};
+use crypto::CryptoRegisterBlock;
+#[cfg(soc_has_dma_crypto)]
+pub use crypto::{CryptoDmaChannel, CryptoDmaRxChannel, CryptoDmaTxChannel};
 use i2s::I2sRegisterBlock;
-pub use i2s::{AnyI2sDmaChannel, AnyI2sDmaRxChannel, AnyI2sDmaTxChannel};
+pub use i2s::{AnyI2sDmaChannel, I2sDmaChannel, I2sDmaRxChannel, I2sDmaTxChannel};
 use spi::SpiRegisterBlock;
-pub use spi::{AnySpiDmaChannel, AnySpiDmaRxChannel, AnySpiDmaTxChannel};
+pub use spi::{AnySpiDmaChannel, SpiDmaChannel, SpiDmaRxChannel, SpiDmaTxChannel};
 
 #[doc(hidden)]
 pub trait PdmaChannel: crate::private::Sealed {
@@ -140,44 +142,37 @@ macro_rules! impl_pdma_channel {
 
             impl<'d> DmaChannelConvert<[<$peri DmaRxChannel>]<'d>> for $instance<'d> {
                 fn degrade(self) -> [<$peri DmaRxChannel>]<'d> {
-                    [<$peri DmaRxChannel>](self.into())
+                    self.into()
                 }
             }
 
             impl<'d> DmaChannelConvert<[<$peri DmaTxChannel>]<'d>> for $instance<'d> {
                 fn degrade(self) -> [<$peri DmaTxChannel>]<'d> {
-                    [<$peri DmaTxChannel>](self.into())
+                    self.into()
                 }
             }
         }
     };
 }
 
-impl_pdma_channel!(AnySpi, SpiRegisterBlock, DMA_SPI2, SPI2_DMA, [Spi2]);
-impl_pdma_channel!(AnySpi, SpiRegisterBlock, DMA_SPI3, SPI3_DMA, [Spi3]);
-
-#[cfg(soc_has_i2s0)]
-impl_pdma_channel!(AnyI2s, I2sRegisterBlock, DMA_I2S0, I2S0, [I2s0]);
-#[cfg(soc_has_i2s1)]
-impl_pdma_channel!(AnyI2s, I2sRegisterBlock, DMA_I2S1, I2S1, [I2s1]);
-
-// Specific peripherals use specific channels. Note that this may be overly
-// restrictive (ESP32 allows configuring 2 SPI DMA channels between 3 different
-// peripherals), but for the current set of restrictions this is sufficient.
-#[cfg(soc_has_spi2)]
-crate::dma::impl_dma_eligible!([DMA_SPI2] SPI2 => Spi2);
-#[cfg(soc_has_spi3)]
-crate::dma::impl_dma_eligible!([DMA_SPI3] SPI3 => Spi3);
-#[cfg(soc_has_i2s0)]
-crate::dma::impl_dma_eligible!([DMA_I2S0] I2S0 => I2s0);
-#[cfg(soc_has_i2s1)]
-crate::dma::impl_dma_eligible!([DMA_I2S1] I2S1 => I2s1);
-#[cfg(esp32s2)]
-use crate::peripherals::DMA_CRYPTO;
-#[cfg(esp32s2)]
-crate::dma::impl_dma_eligible!([DMA_CRYPTO] AES => Aes);
-#[cfg(esp32s2)]
-crate::dma::impl_dma_eligible!([DMA_CRYPTO] SHA => Sha);
+for_each_pdma_channel! {
+    (
+        $soc_cfg:ident,
+        $instance:ident,
+        $family:ident,
+        $regs:ident,
+        $interrupt:ident,
+        [ $( ( $host:ident, $dma_variant:ident ) ),* $(,)? ],
+    ) => {
+        #[cfg($soc_cfg)]
+        paste::paste! {
+            impl_pdma_channel!($family, $regs, $instance, $interrupt, [ $($dma_variant),* ]);
+            $(
+                $crate::dma::impl_dma_eligible!([$instance] $host => $dma_variant);
+            )*
+        }
+    };
+}
 
 pub(super) fn init_dma_racey() {
     #[cfg(esp32)]

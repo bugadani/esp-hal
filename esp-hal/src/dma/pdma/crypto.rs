@@ -1,14 +1,12 @@
 use enumset::EnumSet;
-use portable_atomic::{AtomicBool, Ordering};
+use portable_atomic::Ordering;
 
+use super::PdmaChannel;
 use crate::{
     RegisterToggle,
     asynch::AtomicWaker,
     dma::{
         BurstConfig,
-        DmaChannel,
-        DmaChannelConvert,
-        DmaChannelExt,
         DmaExtMemBKSize,
         DmaPeripheral,
         DmaRxChannel,
@@ -16,13 +14,11 @@ use crate::{
         DmaTxChannel,
         DmaTxInterrupt,
         InterruptAccess,
-        PdmaChannel,
         RegisterAccess,
         RxRegisterAccess,
         TxRegisterAccess,
-        asynch,
     },
-    interrupt::{InterruptHandler, Priority},
+    interrupt::InterruptHandler,
     peripherals::{DMA_CRYPTO, Interrupt},
     system::Peripheral,
 };
@@ -56,6 +52,31 @@ impl CryptoDmaTxChannel<'_> {
 
 impl crate::private::Sealed for CryptoDmaTxChannel<'_> {}
 impl DmaTxChannel for CryptoDmaTxChannel<'_> {}
+
+/// Erased Crypto DMA (`DMA_CRYPTO` singleton) for `DmaChannelConvert`.
+#[derive(Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub struct CryptoDmaChannel<'d>(pub(crate) DMA_CRYPTO<'d>);
+
+impl crate::private::Sealed for CryptoDmaChannel<'_> {}
+
+impl<'d> From<DMA_CRYPTO<'d>> for CryptoDmaChannel<'d> {
+    fn from(inner: DMA_CRYPTO<'d>) -> Self {
+        CryptoDmaChannel(inner)
+    }
+}
+
+impl<'d> From<DMA_CRYPTO<'d>> for CryptoDmaRxChannel<'d> {
+    fn from(inner: DMA_CRYPTO<'d>) -> Self {
+        CryptoDmaRxChannel(inner)
+    }
+}
+
+impl<'d> From<DMA_CRYPTO<'d>> for CryptoDmaTxChannel<'d> {
+    fn from(inner: DMA_CRYPTO<'d>) -> Self {
+        CryptoDmaTxChannel(inner)
+    }
+}
 
 impl RegisterAccess for CryptoDmaTxChannel<'_> {
     fn peripheral_clock(&self) -> Option<Peripheral> {
@@ -430,72 +451,5 @@ impl InterruptAccess<DmaRxInterrupt> for CryptoDmaRxChannel<'_> {
 
     fn set_async(&self, _is_async: bool) {
         self.0.rx_async_flag().store(_is_async, Ordering::Relaxed);
-    }
-}
-
-impl<'d> DmaChannel for DMA_CRYPTO<'d> {
-    type Rx = CryptoDmaRxChannel<'d>;
-    type Tx = CryptoDmaTxChannel<'d>;
-    unsafe fn split_internal(self, _: crate::private::Internal) -> (Self::Rx, Self::Tx) {
-        (
-            CryptoDmaRxChannel(unsafe { Self::steal() }),
-            CryptoDmaTxChannel(unsafe { Self::steal() }),
-        )
-    }
-}
-impl DmaChannelExt for DMA_CRYPTO<'_> {
-    fn rx_interrupts() -> impl InterruptAccess<DmaRxInterrupt> {
-        CryptoDmaRxChannel(unsafe { Self::steal() })
-    }
-    fn tx_interrupts() -> impl InterruptAccess<DmaTxInterrupt> {
-        CryptoDmaTxChannel(unsafe { Self::steal() })
-    }
-}
-impl PdmaChannel for DMA_CRYPTO<'_> {
-    type RegisterBlock = CryptoRegisterBlock;
-    fn register_block(&self) -> &Self::RegisterBlock {
-        DMA_CRYPTO::regs()
-    }
-    fn tx_waker(&self) -> &'static AtomicWaker {
-        static WAKER: AtomicWaker = AtomicWaker::new();
-        &WAKER
-    }
-    fn rx_waker(&self) -> &'static AtomicWaker {
-        static WAKER: AtomicWaker = AtomicWaker::new();
-        &WAKER
-    }
-    fn is_compatible_with(&self, peripheral: DmaPeripheral) -> bool {
-        let compatible_peripherals = [DmaPeripheral::Aes, DmaPeripheral::Sha];
-        compatible_peripherals.contains(&peripheral)
-    }
-    fn peripheral_interrupt(&self) -> Interrupt {
-        Interrupt::CRYPTO_DMA
-    }
-    fn async_handler(&self) -> InterruptHandler {
-        pub(crate) extern "C" fn __esp_hal_internal_interrupt_handler() {
-            asynch::handle_in_interrupt::<DMA_CRYPTO<'static>>();
-            asynch::handle_out_interrupt::<DMA_CRYPTO<'static>>();
-        }
-        pub(crate) static INTERRUPT_HANDLER: InterruptHandler =
-            InterruptHandler::new(__esp_hal_internal_interrupt_handler, Priority::max());
-        INTERRUPT_HANDLER
-    }
-    fn rx_async_flag(&self) -> &'static AtomicBool {
-        static FLAG: AtomicBool = AtomicBool::new(false);
-        &FLAG
-    }
-    fn tx_async_flag(&self) -> &'static AtomicBool {
-        static FLAG: AtomicBool = AtomicBool::new(false);
-        &FLAG
-    }
-}
-impl<'d> DmaChannelConvert<CryptoDmaRxChannel<'d>> for DMA_CRYPTO<'d> {
-    fn degrade(self) -> CryptoDmaRxChannel<'d> {
-        CryptoDmaRxChannel(self)
-    }
-}
-impl<'d> DmaChannelConvert<CryptoDmaTxChannel<'d>> for DMA_CRYPTO<'d> {
-    fn degrade(self) -> CryptoDmaTxChannel<'d> {
-        CryptoDmaTxChannel(self)
     }
 }
