@@ -315,11 +315,9 @@ pub struct PeripheralDef {
     #[serde(default)]
     clock_group: Option<String>,
 
-    /// DMA channel peripheral and engine label: on PDMA (`DMA_SPI2`, …) use ids like `"spi"` /
-    /// `"i2s"` / `"crypto"` (same string as host [`DmaUser::engine`]; drives PDMA
-    /// [`for_each_pdma_channel!`] types such as `{Pascal}RegisterBlock`). On GDMA (`DMA_CH0`,
-    /// …) use `"gdma"` and set [`PeripheralDef::interrupts`] (`peri`, or `rx` + `tx`);
-    /// enumerated for `for_each_gdma_channel!` in esp-metadata-generated / esp-hal.
+    /// DMA channel / engine label: PDMA peripherals (`DMA_SPI2`, …) use ids matching hosts (`spi`,
+    /// `i2s`, …); GDMA rows (`DMA_CH0`, …) use `"gdma"` plus [`PeripheralDef::interrupts`] (`peri`
+    /// or `rx`/`tx`). Codegen emits [`for_each_dma_channel!`] tuples prefixed by `PDMA` / `GDMA`.
     #[serde(default)]
     dma_engine: Option<DmaEngine>,
 }
@@ -378,15 +376,16 @@ fn dma_user_hosts_for_pdma_channel(
     hosts
 }
 
-/// Channel [`DmaEngine`] string: PDMA ids drive [`for_each_pdma_channel!`]; `"gdma"` on `DMA_CH*`
-/// rows drives `for_each_gdma_channel!` in esp-hal.
+/// Channel [`DmaEngine`] string: rows share [`for_each_dma_channel!`] with a leading `PDMA` /
+/// `GDMA` tag.
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(transparent)]
 pub struct DmaEngine(String);
 
 impl DmaEngine {
-    /// Lowercase engine id (same string as host [`DmaUser::engine`]). PDMA ids feed
-    /// [`for_each_pdma_channel!`]; `"gdma"` feeds `for_each_gdma_channel!`.
+    /// Lowercase engine id (same string as host [`DmaUser::engine`]). Rows feed
+    /// [`for_each_dma_channel!`] as `PDMA, …` or `GDMA, …` tuples (family/register block vs channel
+    /// index + IRQ group).
     pub fn as_str(&self) -> &str {
         self.0.as_str()
     }
@@ -484,6 +483,61 @@ fn parse_gdma_channel_interrupts(peri: &PeripheralDef) -> Result<GdmaChannelIrqs
             "{}: dma_engine \"gdma\" requires interrupts.peri (single channel ISR) or interrupts.rx + interrupts.tx (split RX/TX ISRs)",
             peri.name,
         ),
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum DmaChannelMacroSort {
+    /// PDMA rows precede GDMA; preserve declaration order among PDMA peripherals.
+    Pdma(u32),
+    /// GDMA rows ordered by `DMA_CHn` index.
+    Gdma(u32),
+}
+
+fn quote_dma_channel_row_pdma(
+    peri: &PeripheralDef,
+    engine: &DmaEngine,
+    peripherals: &[PeripheralDef],
+) -> TokenStream {
+    let instance_ty = format_ident!("{}", peri.name.as_str());
+    let interrupt_name =
+        dma_engine_interrupt_name(peri).expect("dma_engine rows must include PAC interrupt");
+    let interrupt = format_ident!("{}", interrupt_name);
+    let fam_key = dma_engine_family_key(engine.as_str())
+        .expect("dma_engine should be valid (run Config::validate)");
+    let pascal = dma_engine_family_pascal(&fam_key).expect("dma_engine should be valid");
+    let channel_family = format_ident!("{pascal}");
+    let regs = format_ident!("{pascal}RegisterBlock");
+    let serves = dma_user_hosts_for_pdma_channel(peripherals, peri, engine);
+    let pairs = serves.iter().map(|host| {
+        let host_ident = format_ident!("{}", host);
+        let dma_var = peripheral_dma_variant_ident(host);
+        quote! { (#host_ident, #dma_var) }
+    });
+    quote! {
+        PDMA,
+        #instance_ty,
+        #channel_family,
+        #regs,
+        #interrupt,
+        [#(#pairs),*],
+    }
+}
+
+fn quote_dma_channel_row_gdma(peri: &PeripheralDef) -> TokenStream {
+    let idx = gdma_channel_index(&peri.name).expect("GDMA peripheral names validated");
+    let instance_ty = format_ident!("{}", peri.name.as_str());
+    let num_tok = number(idx);
+    match parse_gdma_channel_interrupts(peri).expect("GDMA channel interrupts validated") {
+        GdmaChannelIrqs::Peri(p) => {
+            let irq = format_ident!("{}", p);
+            quote! { GDMA, #instance_ty, #num_tok, (#irq) }
+        }
+        GdmaChannelIrqs::RxTx { rx, tx } => {
+            let rx_irq = format_ident!("{}", rx);
+            let tx_irq = format_ident!("{}", tx);
+            quote! { GDMA, #instance_ty, #num_tok, (#rx_irq, #tx_irq) }
+        }
     }
 }
 
@@ -1100,7 +1154,8 @@ This pin may be available with certain limitations. Check your hardware to make 
             })
             .collect::<Vec<_>>();
 
-        let mut pdma_channels = vec![];
+        let mut dma_channel_entries: Vec<(DmaChannelMacroSort, TokenStream)> = Vec::new();
+        let mut pdma_seq = 0u32;
         for peri in self.peripherals().iter() {
             let Some(engine) = &peri.dma_engine else {
                 continue;
@@ -1108,65 +1163,21 @@ This pin may be available with certain limitations. Check your hardware to make 
             let fam_key = dma_engine_family_key(engine.as_str())
                 .expect("dma_engine should be valid (run Config::validate)");
             if fam_key == "gdma" {
-                continue;
+                let idx = gdma_channel_index(&peri.name).expect("GDMA peripheral names validated");
+                dma_channel_entries.push((
+                    DmaChannelMacroSort::Gdma(idx),
+                    quote_dma_channel_row_gdma(peri),
+                ));
+            } else {
+                dma_channel_entries.push((
+                    DmaChannelMacroSort::Pdma(pdma_seq),
+                    quote_dma_channel_row_pdma(peri, engine, self.peripherals()),
+                ));
+                pdma_seq += 1;
             }
-
-            let instance_ty = format_ident!("{}", peri.name.as_str());
-
-            let Some(interrupt_name) = dma_engine_interrupt_name(peri) else {
-                unreachable!("dma_engine rows must pass Config::validate interrupt resolution");
-            };
-            let interrupt = format_ident!("{}", interrupt_name);
-            let pascal = dma_engine_family_pascal(&fam_key)
-                .expect("dma_engine should be valid (run Config::validate)");
-            let channel_family = format_ident!("{pascal}");
-            let regs = format_ident!("{pascal}RegisterBlock");
-            let serves = dma_user_hosts_for_pdma_channel(self.peripherals(), peri, engine);
-            let pairs = serves.iter().map(|host| {
-                let host_ident = format_ident!("{}", host);
-                let dma_var = peripheral_dma_variant_ident(host);
-                quote! { (#host_ident, #dma_var) }
-            });
-
-            pdma_channels.push(quote! {
-                #instance_ty,
-                #channel_family,
-                #regs,
-                #interrupt,
-                [#(#pairs),*],
-            });
         }
-
-        let mut gdma_channel_rows = vec![];
-        for peri in self.peripherals().iter() {
-            let Some(engine) = &peri.dma_engine else {
-                continue;
-            };
-            let fam_key = dma_engine_family_key(engine.as_str())
-                .expect("dma_engine should be valid (run Config::validate)");
-            if fam_key != "gdma" {
-                continue;
-            }
-            let idx = gdma_channel_index(&peri.name).expect("GDMA peripheral names validated");
-            let instance_ty = format_ident!("{}", peri.name.as_str());
-            let num_tok = number(idx);
-            let irq_row = match parse_gdma_channel_interrupts(peri)
-                .expect("GDMA channel interrupts validated")
-            {
-                GdmaChannelIrqs::Peri(p) => {
-                    let irq = format_ident!("{}", p);
-                    quote! { #instance_ty, #num_tok, #irq }
-                }
-                GdmaChannelIrqs::RxTx { rx, tx } => {
-                    let rx_irq = format_ident!("{}", rx);
-                    let tx_irq = format_ident!("{}", tx);
-                    quote! { #instance_ty, #num_tok, #rx_irq, #tx_irq }
-                }
-            };
-            gdma_channel_rows.push((idx, irq_row));
-        }
-        gdma_channel_rows.sort_by_key(|(idx, _)| *idx);
-        let gdma_channels: Vec<_> = gdma_channel_rows.into_iter().map(|(_, q)| q).collect();
+        dma_channel_entries.sort_by_key(|(k, _)| *k);
+        let dma_channel_rows: Vec<_> = dma_channel_entries.into_iter().map(|(_, q)| q).collect();
 
         let peripheral_macros = generate_for_each_macro(
             "peripheral",
@@ -1176,21 +1187,15 @@ This pin may be available with certain limitations. Check your hardware to make 
                 ("dma_eligible", &dma_peripherals),
             ],
         );
-        let pdma_macros = if pdma_channels.is_empty() {
+        let dma_channel_macros = if dma_channel_rows.is_empty() {
             quote! {}
         } else {
-            generate_for_each_macro("pdma_channel", &[("all", &pdma_channels)])
-        };
-        let gdma_macros = if gdma_channels.is_empty() {
-            quote! {}
-        } else {
-            generate_for_each_macro("gdma_channel", &[("all", &gdma_channels)])
+            generate_for_each_macro("dma_channel", &[("all", &dma_channel_rows)])
         };
 
         quote! {
             #peripheral_macros
-            #pdma_macros
-            #gdma_macros
+            #dma_channel_macros
         }
     }
 

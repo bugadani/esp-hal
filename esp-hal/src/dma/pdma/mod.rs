@@ -155,20 +155,19 @@ macro_rules! impl_pdma_channel {
     };
 }
 
-for_each_pdma_channel! {
+for_each_dma_channel! {
     (
+        PDMA,
         $instance:ident,
         $family:ident,
         $regs:ident,
         $interrupt:ident,
         [ $( ( $host:ident, $dma_variant:ident ) ),* $(,)? ],
     ) => {
-        paste::paste! {
-            impl_pdma_channel!($family, $regs, $instance, $interrupt, [ $($dma_variant),* ]);
-            $(
-                $crate::dma::impl_dma_eligible!([$instance] $host => $dma_variant);
-            )*
-        }
+        impl_pdma_channel!($family, $regs, $instance, $interrupt, [ $($dma_variant),* ]);
+        $(
+            $crate::dma::impl_dma_eligible!([$instance] $host => $dma_variant);
+        )*
     };
 }
 

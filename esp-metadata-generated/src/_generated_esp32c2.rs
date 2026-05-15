@@ -3490,11 +3490,11 @@ macro_rules! for_each_peripheral {
 }
 #[macro_export]
 #[cfg_attr(docsrs, doc(cfg(feature = "_device-selected")))]
-macro_rules! for_each_gdma_channel {
+macro_rules! for_each_dma_channel {
     ($($pattern:tt => $code:tt;)*) => {
-        macro_rules! _for_each_inner_gdma_channel { $(($pattern) => $code;)* ($other :
-        tt) => {} } _for_each_inner_gdma_channel!((DMA_CH0, 0, DMA_CH0));
-        _for_each_inner_gdma_channel!((all(DMA_CH0, 0, DMA_CH0)));
+        macro_rules! _for_each_inner_dma_channel { $(($pattern) => $code;)* ($other : tt)
+        => {} } _for_each_inner_dma_channel!((GDMA, DMA_CH0, 0, (DMA_CH0)));
+        _for_each_inner_dma_channel!((all(GDMA, DMA_CH0, 0, (DMA_CH0))));
     };
 }
 /// This macro can be used to generate code for each `GPIOn` instance.
