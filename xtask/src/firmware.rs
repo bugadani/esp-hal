@@ -256,7 +256,7 @@ pub fn load(path: &Path) -> Result<Vec<Metadata>> {
                     relevant_metadata.apply(|meta| meta.chips = chips.clone());
                 }
                 // A space-separated list of chips to exclude from the build.
-                "EXCLUDE_CHIP" => {
+                "EXCLUDE_CHIPS" => {
                     let chips = meta_line
                         .value
                         .split_ascii_whitespace()
@@ -391,7 +391,7 @@ fn parse_annotation_chips(text: &str) -> anyhow::Result<Option<std::collections:
                 found = true;
                 chips = parse_chips(meta.key.as_str(), meta.value.as_str())?;
             }
-            "EXCLUDE_CHIP" => {
+            "EXCLUDE_CHIPS" => {
                 excluded.extend(
                     meta.value
                         .split_ascii_whitespace()
