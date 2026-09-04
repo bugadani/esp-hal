@@ -1,5 +1,7 @@
 use alloc::collections::VecDeque as Queue;
 
+#[cfg(esp32s31)]
+use coex_i154::*;
 use esp_hal::{handler, interrupt::Priority, peripherals::IEEE802154};
 use esp_phy::{PhyClockGuard, PhyInitGuard};
 use esp_sync::NonReentrantMutex;
