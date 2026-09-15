@@ -1,17 +1,34 @@
+use esp_hal::{interrupt, system::Cpu};
+
 use crate::{
-    hal::{interrupt::Priority, peripherals::WIFI},
+    hal::{
+        interrupt::Priority,
+        peripherals::{Interrupt, WIFI},
+        ram,
+    },
     interrupt_dispatch::Handler,
     sys::c_types::{c_int, c_void},
 };
 
+static ISR_INTERRUPT_0: Handler = Handler::new();
 static ISR_INTERRUPT_1: Handler = Handler::new();
 
-pub(crate) fn chip_ints_on(_mask: u32) {
-    // CLIC: Enable Wi-Fi interrupt / mask is a no-op — already enabled.
+pub(crate) fn chip_ints_on(mask: u32) {
+    if mask & 1 == 1 {
+        interrupt::enable(Interrupt::MODEM_WIFI_PWR, Priority::Priority1);
+    }
+    if mask & 2 == 2 {
+        interrupt::enable(Interrupt::MODEM_WIFI_MAC, Priority::Priority1);
+    }
 }
 
-pub(crate) fn chip_ints_off(_mask: u32) {
-    // leaving the interrupt enabled seems to not cause issues
+pub(crate) fn chip_ints_off(mask: u32) {
+    if mask & 1 == 1 {
+        interrupt::disable(Cpu::current(), Interrupt::MODEM_WIFI_PWR);
+    }
+    if mask & 2 == 2 {
+        interrupt::disable(Cpu::current(), Interrupt::MODEM_WIFI_MAC);
+    }
 }
 
 pub(crate) unsafe extern "C" fn set_intr(
@@ -20,7 +37,7 @@ pub(crate) unsafe extern "C" fn set_intr(
     _intr_num: u32,
     _intr_prio: i32,
 ) {
-    // Interrupts are configured in `set_isr`.
+    // These are expected to be direct-bound, but we don't do that for now.
 }
 
 pub(crate) unsafe extern "C" fn regdma_link_set_write_wait_content_dummy(
@@ -39,26 +56,22 @@ pub unsafe extern "C" fn set_isr(n: i32, f: *mut c_void, arg: *mut c_void) {
     trace!("set_isr - interrupt {} function {:?} arg {:?}", n, f, arg);
 
     match n {
-        0 | 1 => ISR_INTERRUPT_1.set(f, arg),
+        0 => ISR_INTERRUPT_0.set(f, arg),
+        1 => ISR_INTERRUPT_1.set(f, arg),
         _ => panic!("set_isr - unsupported interrupt number {}", n),
-    }
-
-    unsafe {
-        WIFI::steal().enable_mac_interrupt(Priority::Priority1);
-        WIFI::steal().enable_pwr_interrupt(Priority::Priority1);
     }
 }
 
 #[unsafe(no_mangle)]
-#[crate::hal::ram]
+#[ram]
 extern "C" fn MODEM_WIFI_MAC() {
     ISR_INTERRUPT_1.dispatch();
 }
 
 #[unsafe(no_mangle)]
-#[crate::hal::ram]
+#[ram]
 extern "C" fn MODEM_WIFI_PWR() {
-    ISR_INTERRUPT_1.dispatch();
+    ISR_INTERRUPT_0.dispatch();
 }
 
 pub(crate) fn shutdown_wifi_isr() {

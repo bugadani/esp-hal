@@ -1,12 +1,12 @@
 [target.'cfg(target_arch = "riscv32")']
-runner    = "espflash flash --monitor"
+runner    = "espflash flash --monitor --no-addresses"
 rustflags = [
   "-C", "link-arg=-Tlinkall.x",
   "-C", "force-frame-pointers",
 ]
 
 [target.'cfg(target_arch = "xtensa")']
-runner    = "espflash flash --monitor"
+runner    = "espflash flash --monitor --no-addresses"
 rustflags = [
   # GNU LD
   "-C", "link-arg=-Wl,-Tlinkall.x",

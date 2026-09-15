@@ -5,14 +5,13 @@
 //! - performs an HTTP get request to some "random" server
 //! - does BLE advertising and allows to connect
 
-// The ESP32-S31 does not support coexistence yet, see `esp-radio/build.rs`.
-//% CHIP_FILTER: wifi_driver_supported && bt_driver_supported && !esp32s31
+//% CHIP_FILTER: wifi_driver_supported && bt_driver_supported
 
 #![no_std]
 #![no_main]
 
 use embassy_executor::Spawner;
-use embassy_futures::join::join;
+use embassy_futures::{join::join, select::select};
 use embassy_net::{
     Runner,
     StackResources,
@@ -36,6 +35,7 @@ use esp_radio::{
         sta::StationConfig,
     },
 };
+use log::{info, warn};
 use reqwless::{
     client::HttpClient,
     request::{Method, RequestBuilder},
@@ -100,8 +100,7 @@ async fn main(spawner: Spawner) -> ! {
     let timg0 = TimerGroup::new(peripherals.TIMG0);
     esp_rtos::start(timg0.timer0);
 
-    let bluetooth = peripherals.BT;
-    let connector = BleConnector::new(bluetooth, Default::default()).unwrap();
+    let connector = BleConnector::new(peripherals.BT, Default::default()).unwrap();
     let ble_controller: ExternalController<_, 1> = ExternalController::new(connector);
 
     let station_config = Config::Station(
@@ -112,14 +111,14 @@ async fn main(spawner: Spawner) -> ! {
             )),
     );
 
-    println!("Starting wifi");
+    info!("Starting wifi");
     let wifi_interface = esp_radio::wifi::Interface::station();
     let mut controller = esp_radio::wifi::WifiController::new(
         peripherals.WIFI,
         ControllerConfig::default().with_initial_config(station_config),
     )
     .unwrap();
-    println!("Wifi started!");
+    info!("Wifi started!");
 
     let config = embassy_net::Config::dhcpv4(Default::default());
 
@@ -134,7 +133,7 @@ async fn main(spawner: Spawner) -> ! {
         seed,
     );
 
-    println!("Scan");
+    info!("Scan");
     let scan_config = ScanConfig::default().with_max(10);
     let result = controller.scan_async(&scan_config).await.unwrap();
     for ap in result {
@@ -147,7 +146,7 @@ async fn main(spawner: Spawner) -> ! {
 
     stack.wait_config_up().await;
     if let Some(config) = stack.config_v4() {
-        println!("Got IP: {}", config.address);
+        info!("Got IP: {}", config.address);
     }
 
     // Init HTTP client
@@ -181,7 +180,7 @@ async fn main(spawner: Spawner) -> ! {
                     println!("Body: {}", st);
                 }
             }
-            Err(e) => println!("Body error: {:?}", e),
+            Err(e) => warn!("Body error: {:?}", e),
         }
         Timer::after(Duration::from_millis(3000)).await;
     }
@@ -191,7 +190,7 @@ async fn main(spawner: Spawner) -> ! {
 pub async fn ble_task(controller: ExternalController<BleConnector<'static>, 1>) {
     let address = Address::random([0xff, 0xe4, 0x05, 0x1a, 0x8f, 0xff]);
 
-    println!("Our address = {:?}", address);
+    info!("Our address = {:?}", address);
 
     let mut resources: HostResources<_, DefaultPacketPool, CONNECTIONS_MAX, L2CAP_CHANNELS_MAX> =
         HostResources::new();
@@ -211,7 +210,7 @@ pub async fn ble_task(controller: ExternalController<BleConnector<'static>, 1>) 
     )
     .unwrap();
 
-    println!("Starting advertising and GATT service");
+    info!("Starting advertising and GATT service");
     let server = Server::new_with_config(GapConfig::Peripheral(PeripheralConfig {
         name: "TrouBLE",
         appearance: &appearance::power_device::GENERIC_POWER_DEVICE,
@@ -234,13 +233,20 @@ pub async fn ble_task(controller: ExternalController<BleConnector<'static>, 1>) 
                 )
                 .await
             {
-                Ok(adv) => match adv.accept().await.unwrap().with_attribute_server(&server) {
-                    Ok(conn) => {
-                        println!("got connection");
-                        gatt_events_task(&server, &conn).await.unwrap();
+                Ok(adv) => {
+                    match adv.accept().await.unwrap().with_attribute_server(&server) {
+                        Ok(conn) => {
+                            info!("got connection");
+                            let a = gatt_events_task(&server, &conn);
+                            let b = custom_task(&server, &conn, &stack);
+                            // run until any task ends (usually because the connection has been
+                            // closed), then return to advertising
+                            // state.
+                            select(a, b).await;
+                        }
+                        Err(err) => warn!("Error occurred: {:?}", err),
                     }
-                    Err(err) => println!("Error occurred: {:?}", err),
-                },
+                }
                 Err(e) => {
                     panic!("[adv] error: {:?}", e);
                 }
@@ -298,21 +304,21 @@ async fn gatt_events_task<P: PacketPool>(
 
 #[embassy_executor::task]
 async fn connection(mut controller: WifiController<'static>) {
-    println!("start connection task");
+    info!("start connection task");
 
     loop {
-        println!("About to connect...");
+        info!("About to connect...");
 
         match controller.connect_async().await {
             Ok(info) => {
-                println!("Wifi connected to {:?}", info);
+                info!("Wifi connected to {:?}", info);
 
                 // wait until we're no longer connected
                 let info = controller.wait_for_disconnect_async().await.ok();
-                println!("Disconnected: {:?}", info);
+                info!("Disconnected: {:?}", info);
             }
             Err(e) => {
-                println!("Failed to connect to wifi: {e:?}");
+                info!("Failed to connect to wifi: {e:?}");
             }
         }
 
@@ -323,4 +329,33 @@ async fn connection(mut controller: WifiController<'static>) {
 #[embassy_executor::task]
 async fn net_task(mut runner: Runner<'static, Interface>) {
     runner.run().await
+}
+
+/// Example task to use the BLE notifier interface.
+/// This task will notify the connected central of a counter value every 2 seconds.
+/// It will also read the RSSI value every 2 seconds.
+/// and will stop when the connection is closed by the central or an error occurs.
+async fn custom_task<C: Controller, P: PacketPool>(
+    server: &Server<'_>,
+    conn: &GattConnection<'_, '_, P>,
+    stack: &Stack<'_, C, P>,
+) {
+    let mut tick: u8 = 0;
+    let level = server.battery_service.level;
+    loop {
+        tick = tick.wrapping_add(1);
+        info!("[custom_task] notifying connection of tick {}", tick);
+        if level.notify(conn, &tick, true).await.is_err() {
+            info!("[custom_task] error notifying connection");
+            break;
+        };
+        // read RSSI (Received Signal Strength Indicator) of the connection.
+        if let Ok(rssi) = conn.raw().rssi(stack).await {
+            info!("[custom_task] RSSI: {:?}", rssi);
+        } else {
+            info!("[custom_task] error getting RSSI");
+            break;
+        };
+        Timer::after_secs(2).await;
+    }
 }

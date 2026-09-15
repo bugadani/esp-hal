@@ -849,7 +849,7 @@ pub unsafe extern "C" fn phy_update_country_info(country: *const c_char) -> c_in
     unsafe {
         // not implemented in original code
         trace!("phy_update_country_info {}", str_from_c(country.cast()));
-        -1
+        0
     }
 }
 
@@ -1425,7 +1425,7 @@ coex_fns! {
     fn coex_wifi_release(event: u32) -> c_int;
     fn coex_wifi_channel_set(primary: u8, secondary: u8) -> c_int;
     fn coex_event_duration_get(_event: u32, _duration: *mut u32) -> c_int;
-    #[cfg(not(any(esp32, esp32s2)))]
+    #[cfg(not(any(esp32, esp32s2, esp32s31)))]
     fn coex_pti_get(event: u32, pti: *mut u8) -> c_int;
     fn coex_schm_status_bit_clear(type_: u32, status: u32);
     fn coex_schm_status_bit_set(type_: u32, status: u32);
@@ -1462,7 +1462,7 @@ pub unsafe extern "C" fn coex_status_get() -> u32 {
     }
 }
 
-#[cfg(any(esp32, esp32s2))]
+#[cfg(any(esp32, esp32s2, esp32s31))]
 pub unsafe extern "C" fn coex_pti_get(event: u32, pti: *mut u8) -> c_int {
     trace!("coex_pti_get {} {:?}", event, pti);
     0

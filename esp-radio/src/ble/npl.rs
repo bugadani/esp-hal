@@ -1323,11 +1323,11 @@ pub(crate) fn ble_deinit() {
 
     unsafe {
         // HCI deinit
-        npl::r_ble_hci_trans_cfg_hs(None, core::ptr::null(), None, core::ptr::null());
+        ble::r_ble_hci_trans_cfg_hs(None, core::ptr::null(), None, core::ptr::null());
 
         #[cfg(not(esp32c2))]
         {
-            npl::r_ble_controller_disable();
+            ble::r_ble_controller_disable();
             sync_stack_disable();
             scan_stack_disable();
             extAdv_stack_disable();
@@ -1347,19 +1347,19 @@ pub(crate) fn ble_deinit() {
         }
 
         #[cfg(not(esp32c2))]
-        let res = npl::r_ble_controller_deinit();
+        let res = ble::r_ble_controller_deinit();
 
         #[cfg(esp32c2)]
-        let res = npl::ble_controller_deinit();
+        let res = ble::ble_controller_deinit();
 
         assert!(res == 0, "ble_controller_deinit returned {}", res);
 
         #[cfg(esp32c2)]
         os_msys_buf_free();
 
-        npl::esp_unregister_npl_funcs();
+        ble::esp_unregister_npl_funcs();
 
-        npl::esp_unregister_ext_funcs();
+        ble::esp_unregister_ext_funcs();
     }
 }
 

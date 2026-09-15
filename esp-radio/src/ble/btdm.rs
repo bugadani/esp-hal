@@ -11,7 +11,7 @@ use crate::{
     ble::{
         HCI_OUT_COLLECTOR,
         HciOutCollector,
-        btdm::ble_os_adapter_chip_specific::{G_OSI_FUNCS, osi_funcs_s},
+        ble::ble_os_adapter_chip_specific::{G_OSI_FUNCS, osi_funcs_s},
     },
     compat::common::str_from_c,
     hal::ram,
